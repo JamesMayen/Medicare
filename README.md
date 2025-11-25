@@ -1,6 +1,8 @@
 # Medicare - Healthcare Management System
 
 A full-stack MERN (MongoDB, Express.js, React, Node.js) application for healthcare management, enabling patients to book appointments and communicate with doctors through a secure chat system.
+**Frontend URL**: https://medicare-system.vercel.app/
+**Backend URL**:https://medicare-system-5027.onrender.com/
 
 ## 🚀 Features
 
