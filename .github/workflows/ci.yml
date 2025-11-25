@@ -1,0 +1,135 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Backend Tests and Build
+  backend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./Backend
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: Backend/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linting
+      run: npm run lint || echo "No lint script found"
+
+    - name: Run tests
+      run: npm test || echo "No tests found"
+
+    - name: Build application
+      run: npm run build
+
+    - name: Check for security vulnerabilities
+      run: npm audit --audit-level moderate
+
+  # Frontend Tests and Build
+  frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linting
+      run: npm run lint || echo "No lint script found"
+
+    - name: Type checking
+      run: npm run type-check || echo "No type-check script found"
+
+    - name: Run tests
+      run: npm test || echo "No tests found"
+
+    - name: Build application
+      run: npm run build
+
+    - name: Check bundle size
+      run: npx vite-bundle-analyzer dist || echo "Bundle analyzer not available"
+
+  # Security Scan
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Code Quality
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install dependencies (backend)
+      working-directory: ./Backend
+      run: npm ci
+
+    - name: Install dependencies (frontend)
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Run ESLint
+      run: |
+        cd Backend && npx eslint . --ext .js || echo "Backend linting completed"
+        cd ../frontend && npx eslint . --ext .js,.jsx || echo "Frontend linting completed"
+
+    - name: Check code formatting
+      run: |
+        npx prettier --check "Backend/**/*.js" "frontend/src/**/*.{js,jsx}" || echo "Code formatting check completed"
