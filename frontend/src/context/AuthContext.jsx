@@ -10,19 +10,22 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
-    if (storedToken) {
+    const storedUser = localStorage.getItem('user');
+    if (storedToken && storedUser) {
       try {
         const decoded = jwtDecode(storedToken);
         if (!decoded.name || !decoded.email) {
           // Old token without user details, remove it
           localStorage.removeItem('token');
+          localStorage.removeItem('user');
           setUser(null);
         } else {
-          setUser({ ...decoded, token: storedToken });
+          setUser({ ...JSON.parse(storedUser), token: storedToken });
         }
       } catch (err) {
-        console.error('Invalid token:', err);
+        console.error('Invalid token or user data:', err);
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
       }
     }
     setLoading(false);
@@ -30,7 +33,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const res = await fetch('https://medicare-system-5027.onrender.com/api/auth/login', {
+      const res = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -40,8 +43,9 @@ export const AuthProvider = ({ children }) => {
 
       if (res.ok) {
         localStorage.setItem('token', data.token);
-        const decoded = jwtDecode(data.token);
-        setUser({ ...decoded, token: data.token });
+        const { token, ...userData } = data;
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser({ ...userData, token });
         return { success: true };
       } else {
         return { success: false, message: data.message || 'Login failed' };
@@ -54,7 +58,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (fullName, email, password, role = 'patient') => {
     try {
-      const res = await fetch('https://medicare-system-5027.onrender.com/api/auth/register', {
+      const res = await fetch('http://localhost:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: fullName, email, password, role }),
@@ -64,8 +68,9 @@ export const AuthProvider = ({ children }) => {
 
       if (res.ok) {
         localStorage.setItem('token', data.token);
-        const decoded = jwtDecode(data.token);
-        setUser({ ...decoded, token: data.token });
+        const { token, ...userData } = data;
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser({ ...userData, token });
         return { success: true };
       } else {
         return { success: false, message: data.message || 'Registration failed' };
@@ -78,6 +83,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
   };
 

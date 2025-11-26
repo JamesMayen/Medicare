@@ -47,7 +47,7 @@ export const createAppointment = async (req, res) => {
 // @route   PUT /api/appointments/:id
 // @access  Private
 export const updateAppointment = async (req, res) => {
-  const { status, notes } = req.body;
+  const { status, notes, date, time } = req.body;
 
   try {
     const appointment = await Appointment.findById(req.params.id);
@@ -66,6 +66,8 @@ export const updateAppointment = async (req, res) => {
 
     appointment.status = status || appointment.status;
     appointment.notes = notes || appointment.notes;
+    appointment.date = date || appointment.date;
+    appointment.time = time || appointment.time;
 
     const updatedAppointment = await appointment.save();
 

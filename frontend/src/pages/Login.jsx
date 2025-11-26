@@ -22,7 +22,15 @@ const Login = () => {
       const trimmedPassword = password.trim();
       const result = await login(email, trimmedPassword);
       if (result.success) {
-        navigate('/landing'); // Redirect on success
+        // Redirect based on role
+        const userRole = JSON.parse(localStorage.getItem('user'))?.role;
+        if (userRole === 'doctor') {
+          navigate('/doctor-dashboard');
+        } else if (userRole === 'admin') {
+          navigate('/admin-dashboard'); // Placeholder for admin
+        } else {
+          navigate('/landing');
+        }
       } else {
         setError(result.message || 'Login failed');
       }

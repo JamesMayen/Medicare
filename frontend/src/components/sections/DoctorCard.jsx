@@ -1,6 +1,8 @@
 import React from "react";
 import { useState } from "react";
 import { Star, MapPin, Calendar, Clock, MessageCircle } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import logo1 from "../images/logo-1.png";
 import logo2 from "../images/logo-2.png";
 import logo4 from "../images/logo-4.svg";
@@ -49,6 +51,27 @@ const doctors = [
 // ✅ DoctorCard component
 
 const DoctorCard = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleBookAppointment = (doctor) => {
+    if (!user) {
+      // Not logged in, redirect to login
+      navigate('/login');
+      return;
+    }
+
+    if (user.role === 'doctor') {
+      // Doctors cannot book appointments
+      alert('Doctors cannot book appointments. Please login as a patient.');
+      return;
+    }
+
+    // User is logged in as patient, proceed with booking
+    // For now, just show an alert - in a real app, this would open a booking modal/form
+    alert(`Booking appointment with Dr. ${doctor.name}. This feature is under development.`);
+  };
+
   return (
     <div className="flex flex-wrap gap-4 justify-center">
     {doctors.map((doctor,index) => (
@@ -115,7 +138,10 @@ const DoctorCard = () => {
 
         {/* ===== Action Buttons ===== */}
         <div className="flex gap-2 pt-4">
-          <button className="flex-1 flex items-center justify-center cursor-pointer bg-gradient-to-r from-blue-600 to-blue-400 text-white py-2 rounded-lg hover:from-blue-700 hover:to-blue-500 transition-all">
+          <button
+            onClick={() => handleBookAppointment(doctor)}
+            className="flex-1 flex items-center justify-center cursor-pointer bg-gradient-to-r from-blue-600 to-blue-400 text-white py-2 rounded-lg hover:from-blue-700 hover:to-blue-500 transition-all"
+          >
             <Calendar className="w-4 h-4 mr-2" />
             Book Appointment
           </button>
