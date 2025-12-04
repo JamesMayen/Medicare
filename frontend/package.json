@@ -6,20 +6,32 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "serve": "vite preview --host 0.0.0.0 --port 3000"
+    "serve": "vite preview --host 0.0.0.0 --port 3000",
+    "test": "vitest",
+    "lint": "eslint . --ext .js,.jsx"
   },
   "dependencies": {
     "framer-motion": "^12.23.24",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.545.0",
     "react": "^18.3.1",
+    "react-datepicker": "^8.10.0",
     "react-dom": "^18.3.1",
     "react-icons": "^5.5.0",
-    "react-router-dom": "^7.9.4"
+    "react-router-dom": "^7.9.4",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^7.1.9"
+    "eslint": "^8.57.0",
+    "jsdom": "^27.2.0",
+    "prettier": "^3.3.3",
+    "vite": "^7.1.9",
+    "vite-bundle-analyzer": "^0.11.1",
+    "vitest": "^4.0.14"
   }
 }

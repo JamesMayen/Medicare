@@ -1,0 +1,79 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - banner [ref=e5]:
+      - navigation "Main navigation" [ref=e6]:
+        - generic [ref=e8]:
+          - link "Skip to main content" [ref=e9] [cursor=pointer]:
+            - /url: "#main-content"
+          - img "MediCare - Healthcare platform logo" [ref=e11]
+          - generic [ref=e12]:
+            - link "Find Doctors - Browse available doctors" [ref=e13] [cursor=pointer]:
+              - /url: "#doctors"
+              - img [ref=e14]
+              - generic [ref=e18]: Find Doctors
+            - link "Locations - Find healthcare locations" [ref=e19] [cursor=pointer]:
+              - /url: "#locations"
+              - img [ref=e20]
+              - generic [ref=e23]: Locations
+            - link "AI Assistant - Chat with AI health assistant" [ref=e24] [cursor=pointer]:
+              - /url: "#chat"
+              - img [ref=e25]
+              - generic [ref=e27]: AI Assistant
+            - link "Appointments - View your appointments" [ref=e28] [cursor=pointer]:
+              - /url: "#appointments"
+              - img [ref=e29]
+              - generic [ref=e31]: Appointments
+            - link "Sign up for a new account" [ref=e32] [cursor=pointer]:
+              - /url: /login
+              - text: Signup
+  - main [ref=e33]:
+    - main [ref=e34]:
+      - generic [ref=e35]:
+        - heading "Sign Up" [level=1] [ref=e36]
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]: Full Name
+            - textbox "Full Name" [ref=e40]:
+              - /placeholder: Enter your full name
+          - generic [ref=e41]:
+            - generic [ref=e42]: Email Address
+            - textbox "Email Address" [ref=e43]:
+              - /placeholder: Enter your email
+          - generic [ref=e44]:
+            - generic [ref=e45]: Password
+            - generic [ref=e46]:
+              - textbox "Password" [ref=e47]:
+                - /placeholder: Create a password
+              - button "Show password" [ref=e48]:
+                - img [ref=e49]
+          - generic [ref=e52]:
+            - generic [ref=e53]: Confirm Password
+            - generic [ref=e54]:
+              - textbox "Confirm Password" [ref=e55]:
+                - /placeholder: Confirm your password
+              - button "Show confirm password" [ref=e56]:
+                - img [ref=e57]
+          - generic [ref=e60]:
+            - generic [ref=e61]: Account Type
+            - combobox "Account Type" [ref=e62]:
+              - option "Patient" [selected]
+              - option "Doctor"
+              - option "Admin"
+          - button "Create Account" [ref=e63]
+        - paragraph [ref=e64]:
+          - text: Already have an account?
+          - link "Sign in" [ref=e65] [cursor=pointer]:
+            - /url: /login
+  - contentinfo [ref=e66]:
+    - contentinfo [ref=e67]:
+      - generic [ref=e68]:
+        - img "MediCare Logo" [ref=e69]
+        - paragraph [ref=e70]: Your trusted healthcare companion for finding doctors and booking appointments.
+        - paragraph [ref=e71]: "Services: Find Doctors | Book Appointments | AI Health Assistant | Emergency Care"
+        - paragraph [ref=e72]: "Support: Help Center | Contact Us | Privacy Policy | Terms of Service"
+        - paragraph [ref=e73]: "Emergency: 211 | Support: (211) 922-422-477 | info@medicare-app.com"
+        - paragraph [ref=e74]: © 2025 MediCare. All rights reserved.
+```

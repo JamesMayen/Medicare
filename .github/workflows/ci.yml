@@ -53,14 +53,18 @@ jobs:
       run:
         working-directory: ./frontend
 
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: Setup Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: ${{ matrix.node-version }}
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
@@ -115,7 +119,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '18.x'
 
     - name: Install dependencies (backend)
       working-directory: ./Backend
@@ -127,8 +131,8 @@ jobs:
 
     - name: Run ESLint
       run: |
-        cd Backend && npx eslint . --ext .js || echo "Backend linting completed"
-        cd ../frontend && npx eslint . --ext .js,.jsx || echo "Frontend linting completed"
+        cd Backend && npm run lint || echo "Backend linting completed"
+        cd ../frontend && npm run lint || echo "Frontend linting completed"
 
     - name: Check code formatting
       run: |

@@ -26,12 +26,19 @@ const appointmentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "confirmed", "completed", "cancelled"],
+      enum: ["pending", "confirmed", "completed", "cancelled", "rejected"],
       default: "pending",
     },
     notes: {
       type: String,
     },
+    type: {
+      type: String,
+      enum: ["in-person", "online"],
+      required: true,
+    },
+    documents: [String],
+    fee: Number,
   },
   { timestamps: true }
 );

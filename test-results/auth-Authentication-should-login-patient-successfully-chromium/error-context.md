@@ -1,0 +1,55 @@
+# Page snapshot
+
+```yaml
+- main [ref=e4]:
+  - generic [ref=e5]:
+    - banner [ref=e6]:
+      - button "User menu" [ref=e10]:
+        - img [ref=e11]
+        - img [ref=e14]
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - navigation [ref=e20]:
+          - button "Dashboard" [ref=e21]:
+            - img [ref=e22]
+            - text: Dashboard
+          - button "Book Appointment" [ref=e24]:
+            - img [ref=e25]
+            - text: Book Appointment
+          - button "My Appointments" [ref=e26]:
+            - img [ref=e27]
+            - text: My Appointments
+          - button "My Doctors" [ref=e29]:
+            - img [ref=e30]
+            - text: My Doctors
+          - button "Messages" [ref=e34]:
+            - img [ref=e35]
+            - text: Messages
+          - button "Notifications" [ref=e37]:
+            - img [ref=e38]
+            - text: Notifications
+          - button "Settings" [ref=e41]:
+            - img [ref=e42]
+            - text: Settings
+        - generic [ref=e46]:
+          - generic [ref=e48]:
+            - img [ref=e49]
+            - generic [ref=e51]:
+              - paragraph [ref=e52]: Today's Appointments
+              - paragraph [ref=e53]: "0"
+          - generic [ref=e55]:
+            - img [ref=e56]
+            - generic [ref=e59]:
+              - paragraph [ref=e60]: Upcoming
+              - paragraph [ref=e61]: "0"
+          - generic [ref=e63]:
+            - img [ref=e64]
+            - generic [ref=e67]:
+              - paragraph [ref=e68]: Completed
+              - paragraph [ref=e69]: "0"
+          - generic [ref=e71]:
+            - img [ref=e72]
+            - generic [ref=e77]:
+              - paragraph [ref=e78]: Doctors Visited
+              - paragraph [ref=e79]: "0"
+```

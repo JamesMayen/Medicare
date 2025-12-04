@@ -9,10 +9,23 @@
     "dev": "nodemon server.js",
     "build": "echo 'No build step required for backend'",
     "prod": "NODE_ENV=production node server.js",
-    "test": "echo 'No tests specified'"
+    "test": "jest",
+    "lint": "eslint . --ext .js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {},
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ]
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^9.1.1",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.3.3",
+    "supertest": "^6.3.3"
   },
   "keywords": [],
   "author": "",
@@ -25,9 +38,13 @@
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "express-rate-limit": "^8.2.1",
+    "form-data": "^4.0.5",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1",
-    "morgan": "^1.10.1"
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
+    "socket.io": "^4.8.1"
   }
 }

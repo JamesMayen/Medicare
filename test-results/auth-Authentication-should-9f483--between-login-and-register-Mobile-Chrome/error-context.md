@@ -1,0 +1,61 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - banner [ref=e5]:
+      - navigation "Main navigation" [ref=e6]:
+        - generic [ref=e8]:
+          - link "Skip to main content" [ref=e9] [cursor=pointer]:
+            - /url: "#main-content"
+          - img "MediCare - Healthcare platform logo" [ref=e11]
+          - button "Open mobile menu" [ref=e12]:
+            - img [ref=e13]
+  - main [ref=e14]:
+    - main [ref=e15]:
+      - generic [ref=e16]:
+        - heading "Sign Up" [level=1] [ref=e17]
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - generic [ref=e20]: Full Name
+            - textbox "Full Name" [ref=e21]:
+              - /placeholder: Enter your full name
+          - generic [ref=e22]:
+            - generic [ref=e23]: Email Address
+            - textbox "Email Address" [ref=e24]:
+              - /placeholder: Enter your email
+          - generic [ref=e25]:
+            - generic [ref=e26]: Password
+            - generic [ref=e27]:
+              - textbox "Password" [ref=e28]:
+                - /placeholder: Create a password
+              - button "Show password" [ref=e29]:
+                - img [ref=e30]
+          - generic [ref=e33]:
+            - generic [ref=e34]: Confirm Password
+            - generic [ref=e35]:
+              - textbox "Confirm Password" [ref=e36]:
+                - /placeholder: Confirm your password
+              - button "Show confirm password" [ref=e37]:
+                - img [ref=e38]
+          - generic [ref=e41]:
+            - generic [ref=e42]: Account Type
+            - combobox "Account Type" [ref=e43]:
+              - option "Patient" [selected]
+              - option "Doctor"
+              - option "Admin"
+          - button "Create Account" [ref=e44]
+        - paragraph [ref=e45]:
+          - text: Already have an account?
+          - link "Sign in" [ref=e46] [cursor=pointer]:
+            - /url: /login
+  - contentinfo [ref=e47]:
+    - contentinfo [ref=e48]:
+      - generic [ref=e49]:
+        - img "MediCare Logo" [ref=e50]
+        - paragraph [ref=e51]: Your trusted healthcare companion for finding doctors and booking appointments.
+        - paragraph [ref=e52]: "Services: Find Doctors | Book Appointments | AI Health Assistant | Emergency Care"
+        - paragraph [ref=e53]: "Support: Help Center | Contact Us | Privacy Policy | Terms of Service"
+        - paragraph [ref=e54]: "Emergency: 211 | Support: (211) 922-422-477 | info@medicare-app.com"
+        - paragraph [ref=e55]: © 2025 MediCare. All rights reserved.
+```

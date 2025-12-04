@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import Navigation from "./Navigation";
 import SearchFilters from "../sections/SearchFilter";
 import MapSection from "../sections/MapSection";
@@ -7,6 +8,7 @@ import Hero from "../sections/Hero";
 import AIChat from "../sections/AIChat";
 import { Button } from "../UI/button";
 import { HeartPulse, Calendar, MessageCircle, Star } from "lucide-react";
+import { useSocket } from "../../context/SocketContext";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 30 },
@@ -19,6 +21,50 @@ const fadeIn = {
 };
 
 const LandingPage = () => {
+  const [doctors, setDoctors] = useState([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/doctors');
+        if (response.ok) {
+          const data = await response.json();
+          // Shuffle and take first 8 doctors for random display
+          const shuffled = data.sort(() => 0.5 - Math.random());
+          setDoctors(shuffled.slice(0, 8));
+        } else {
+          console.error('Failed to fetch doctors');
+        }
+      } catch (error) {
+        console.error('Error fetching doctors:', error);
+      } finally {
+        setLoadingDoctors(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
+
+  useEffect(() => {
+    if (socket) {
+      const handleDoctorUpdate = (updatedDoctor) => {
+        console.log('DEBUG: Received doctorProfileUpdated for doctor:', updatedDoctor._id, 'availabilities:', updatedDoctor.availabilities);
+        setDoctors((prevDoctors) =>
+          prevDoctors.map((doctor) =>
+            doctor._id === updatedDoctor._id ? updatedDoctor : doctor
+          )
+        );
+      };
+
+      socket.on('doctorProfileUpdated', handleDoctorUpdate);
+
+      return () => {
+        socket.off('doctorProfileUpdated', handleDoctorUpdate);
+      };
+    }
+  }, [socket]);
  
 
   return (
@@ -44,7 +90,7 @@ const LandingPage = () => {
       </motion.section>
 
       {/* ✅ Featured Doctors */}
-      <DoctorCard />
+      <DoctorCard doctors={doctors} loading={loadingDoctors} />
 
       {/* ✅ Map section */}
       <MapSection />

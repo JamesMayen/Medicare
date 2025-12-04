@@ -1,6 +1,8 @@
 import User from "../models/user.js";
+import Availability from "../models/availability.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../utils/generateToken.js";
+import { emitDoctorProfileUpdated } from "../utils/socketEmitter.js";
 
 // ------------------------
 // Register a new user
@@ -33,6 +35,9 @@ export const registerUser = async (req, res) => {
       password: hashedPassword,
       role: role || "patient",
     });
+    if (user.role === 'doctor') {
+      console.log(`User ${user.name} has created an account as a doctor. Please review them.`);
+    }
 
     // Return user with token
     const userResponse = {
@@ -40,14 +45,15 @@ export const registerUser = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      profilePhoto: user.profilePhoto,
+      createdAt: user.createdAt,
       ...(user.role === 'doctor' && {
         specialization: user.specialization,
         experience: user.experience,
         contactDetails: user.contactDetails,
         workLocation: user.workLocation,
-        consultationFee: user.consultationFee,
+        consultationFees: user.consultationFees,
         availability: user.availability,
-        profilePhoto: user.profilePhoto,
       }),
       token: generateToken({
         _id: user._id.toString(),
@@ -80,14 +86,21 @@ export const getProfile = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      contactDetails: user.contactDetails,
+      bio: user.bio,
+      profilePhoto: user.profilePhoto,
+      createdAt: user.createdAt,
       ...(user.role === 'doctor' && {
         specialization: user.specialization,
         experience: user.experience,
-        contactDetails: user.contactDetails,
         workLocation: user.workLocation,
-        consultationFee: user.consultationFee,
+        consultationFees: user.consultationFees,
         availability: user.availability,
-        profilePhoto: user.profilePhoto,
+        hospital: user.hospital,
+      }),
+      ...(user.role === 'patient' && {
+        medicalInfo: user.medicalInfo,
+        insurance: user.insurance,
       }),
     });
   } catch (error) {
@@ -97,57 +110,189 @@ export const getProfile = async (req, res) => {
 };
 
 // ------------------------
-// Update user profile
+// Update user profile  (UPDATED VERSION WITHOUT FEE & AVAILABILITY)
 // ------------------------
 export const updateProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    console.log("Updating profile for user:", req.user._id);
+    console.log("req.body received:", req.body);
+    console.log("req.files received:", req.files);
+    console.log("req.file received:", req.file);
 
+    const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Handle both JSON and multipart data
+    let bodyData = req.body || {};
+
+    // If req.body is empty but we have files, try to extract text fields from files
+    if (!req.body && req.files) {
+      bodyData = {};
+      req.files.forEach(file => {
+        if (file.fieldname !== 'profilePhoto') {
+          bodyData[file.fieldname] = file.value || file.buffer?.toString();
+        }
+      });
+    }
+
     const {
       name,
+      email,
+      phone,
+      gender,
+      address,
       specialization,
       experience,
-      contactDetails,
+      bio,
+      medicalInfo,
+      insurance,
+      hospital,
       workLocation,
-      consultationFee,
-      availability,
-      profilePhoto
-    } = req.body;
+      consultationFees
+    } = bodyData;
 
-    // Update fields
-    if (name) user.name = name;
-    if (specialization !== undefined) user.specialization = specialization;
-    if (experience !== undefined) user.experience = experience;
-    if (contactDetails) user.contactDetails = contactDetails;
-    if (workLocation !== undefined) user.workLocation = workLocation;
-    if (consultationFee !== undefined) user.consultationFee = consultationFee;
-    if (availability) user.availability = availability;
-    if (profilePhoto !== undefined) user.profilePhoto = profilePhoto;
+    console.log("Destructured fields - bio:", bio, "medicalInfo:", medicalInfo, "insurance:", insurance);
+    console.log("Destructured fields - workLocation:", workLocation, "hospital:", hospital);
+
+    // =======================
+    // Basic Validations
+    // =======================
+    if (name && name.trim().length < 2) {
+      return res.status(400).json({ message: "Name must be at least 2 characters" });
+    }
+
+    if (email && !email.includes("@")) {
+      return res.status(400).json({ message: "Invalid email address" });
+    }
+
+    if (user.role === "doctor") {
+      // Doctor-specific validations
+      if (bio && bio.trim().length < 10) {
+        return res.status(400).json({ message: "Bio must be at least 10 characters long" });
+      }
+
+      if (experience !== undefined) {
+        const expValue = parseInt(experience, 10);
+        if (isNaN(expValue) || expValue < 0 || expValue > 50) {
+          return res.status(400).json({
+            message: "Experience must be a number between 0 and 50",
+          });
+        }
+        user.experience = expValue;
+      }
+
+      if (specialization !== undefined) {
+        user.specialization = specialization.trim();
+      }
+
+      if (consultationFees !== undefined) {
+        const feeValue = parseFloat(consultationFees);
+        if (isNaN(feeValue) || feeValue < 0) {
+          return res.status(400).json({ message: "Consultation fees must be a positive number" });
+        }
+        user.consultationFees = feeValue;
+      }
+
+      if (workLocation !== undefined) {
+        console.log("Updating workLocation to:", workLocation.trim());
+        user.workLocation = workLocation.trim();
+      }
+
+      // Hospital update
+      if (hospital !== undefined) {
+        if (hospital.trim() === "") {
+          user.hospital = null;
+          console.log("Clearing hospital field");
+        } else {
+          user.hospital = hospital.trim();
+          console.log("Setting hospital to:", hospital.trim());
+        }
+      }
+    }
+
+    // Handle bio for all users
+    if (bio !== undefined) {
+      user.bio = bio.trim();
+    }
+
+    // Patient-specific fields
+    if (user.role === "patient") {
+      if (medicalInfo !== undefined) {
+        user.medicalInfo = medicalInfo.trim();
+      }
+      if (insurance !== undefined) {
+        user.insurance = insurance.trim();
+      }
+    }
+
+    // Profile photo upload for all users
+    let profilePhotoFile = req.file;
+    if (!profilePhotoFile && req.files) {
+      profilePhotoFile = req.files.find(file => file.fieldname === 'profilePhoto');
+    }
+    if (profilePhotoFile) {
+      user.profilePhoto = "/uploads/" + profilePhotoFile.filename;
+    }
+
+    // =======================
+    // Update general fields (for all roles)
+    // =======================
+    if (name !== undefined) user.name = name.trim();
+    if (email !== undefined) user.email = email.trim().toLowerCase();
+    if (phone !== undefined) user.contactDetails.phone = phone.trim();
+    if (address !== undefined) user.contactDetails.address = address.trim();
+    if (gender !== undefined) user.gender = gender;
 
     const updatedUser = await user.save();
+
+    console.log("Profile updated successfully. New bio:", updatedUser.bio, "New medicalInfo:", updatedUser.medicalInfo, "New insurance:", updatedUser.insurance);
+    console.log("Profile updated successfully. New workLocation:", updatedUser.workLocation, "New hospital:", updatedUser.hospital);
+
+    // Emit real-time update for doctor profiles
+    if (updatedUser.role === "doctor") {
+      emitDoctorProfileUpdated({
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        specialization: updatedUser.specialization,
+        averageRating: updatedUser.averageRating,
+        experience: updatedUser.experience,
+        workLocation: updatedUser.workLocation,
+        consultationFees: updatedUser.consultationFees,
+        profilePhoto: updatedUser.profilePhoto,
+        hospital: updatedUser.hospital,
+        bio: updatedUser.bio,
+        contactDetails: updatedUser.contactDetails,
+        isVerified: updatedUser.isVerified,
+      });
+    }
 
     res.json({
       _id: updatedUser._id,
       name: updatedUser.name,
       email: updatedUser.email,
       role: updatedUser.role,
-      ...(updatedUser.role === 'doctor' && {
+      contactDetails: updatedUser.contactDetails,
+      bio: updatedUser.bio,
+      profilePhoto: updatedUser.profilePhoto,
+      createdAt: updatedUser.createdAt,
+      ...(updatedUser.role === "doctor" && {
         specialization: updatedUser.specialization,
         experience: updatedUser.experience,
-        contactDetails: updatedUser.contactDetails,
         workLocation: updatedUser.workLocation,
-        consultationFee: updatedUser.consultationFee,
-        availability: updatedUser.availability,
-        profilePhoto: updatedUser.profilePhoto,
+        consultationFees: updatedUser.consultationFees,
+        hospital: updatedUser.hospital,
+      }),
+      ...(updatedUser.role === "patient" && {
+        medicalInfo: updatedUser.medicalInfo,
+        insurance: updatedUser.insurance,
       }),
     });
+
   } catch (error) {
     console.error("Update profile error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -167,7 +312,7 @@ export const loginUser = async (req, res) => {
     password = password.trim();
 
     // Find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: new RegExp(`^${email}$`, 'i') });
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
@@ -184,14 +329,15 @@ export const loginUser = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      profilePhoto: user.profilePhoto,
+      createdAt: user.createdAt,
       ...(user.role === 'doctor' && {
         specialization: user.specialization,
         experience: user.experience,
         contactDetails: user.contactDetails,
         workLocation: user.workLocation,
-        consultationFee: user.consultationFee,
+        consultationFees: user.consultationFees,
         availability: user.availability,
-        profilePhoto: user.profilePhoto,
       }),
       token: generateToken({
         _id: user._id.toString(),
@@ -204,6 +350,46 @@ export const loginUser = async (req, res) => {
     res.json(userResponse);
   } catch (error) {
     console.error("Login error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ------------------------
+// Get all doctors
+// ------------------------
+export const getDoctors = async (req, res) => {
+  try {
+    // Fetch all doctors
+    const doctors = await User.find({ role: 'doctor' })
+      .select('name specialization averageRating experience workLocation consultationFees profilePhoto hospital bio contactDetails isVerified');
+
+    // Fetch all availabilities
+    const availabilities = await Availability.find({});
+
+    // Group availabilities by doctor
+    const availabilitiesMap = {};
+    availabilities.forEach(avail => {
+      const doctorId = avail.doctor.toString();
+      if (!availabilitiesMap[doctorId]) {
+        availabilitiesMap[doctorId] = [];
+      }
+      availabilitiesMap[doctorId].push({
+        _id: avail._id,
+        day: avail.day,
+        startTime: avail.startTime,
+        endTime: avail.endTime,
+      });
+    });
+
+    // Add availabilities to each doctor
+    const doctorsWithAvailabilities = doctors.map(doctor => ({
+      ...doctor.toObject(),
+      availabilities: availabilitiesMap[doctor._id.toString()] || [],
+    }));
+
+    res.json(doctorsWithAvailabilities);
+  } catch (error) {
+    console.error("Get doctors error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

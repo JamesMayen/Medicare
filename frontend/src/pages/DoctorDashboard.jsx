@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -18,11 +19,14 @@ import {
   Filter,
   User,
   ChevronDown,
-  X
+  X,
+  Briefcase,
+  FileText
 } from 'lucide-react';
 
 const DoctorDashboard = () => {
-  const { user, logout, loading: authLoading } = useAuth();
+  const { user, setUser, logout, loading: authLoading } = useAuth();
+  const { socket } = useSocket();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [appointments, setAppointments] = useState([]);
@@ -30,11 +34,32 @@ const DoctorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [availability, setAvailability] = useState(user?.availability || []);
   const [isEditingAvailability, setIsEditingAvailability] = useState(false);
+  const [availabilitySlots, setAvailabilitySlots] = useState([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilitySuccess, setAvailabilitySuccess] = useState(null);
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [newSlot, setNewSlot] = useState({ day: '', startTime: '', endTime: '' });
   const [selectedChat, setSelectedChat] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userDetails, setUserDetails] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [fee, setFee] = useState(user?.consultationFees || 0);
+  const [newFee, setNewFee] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showFeeSuccessModal, setShowFeeSuccessModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    specialization: user?.specialization || '',
+    experience: user?.experience || '',
+    workLocation: user?.workLocation || '',
+    hospital: user?.hospital || '',
+    bio: user?.bio || '',
+    phone: user?.contactDetails?.phone || '',
+    address: user?.contactDetails?.address || '',
+    profilePhoto: null
+  });
 
   useEffect(() => {
     if (!authLoading) {
@@ -49,6 +74,82 @@ const DoctorDashboard = () => {
   useEffect(() => {
     setAvailability(user?.availability || []);
   }, [user?.availability]);
+
+  useEffect(() => {
+    setFee(user?.consultationFees || 0);
+  }, [user?.consultationFees]);
+
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        name: user.name || '',
+        specialization: user.specialization || '',
+        experience: user.experience || '',
+        workLocation: user.workLocation || '',
+        hospital: user.hospital || '',
+        bio: user.bio || '',
+        phone: user.contactDetails?.phone || '',
+        address: user.contactDetails?.address || '',
+        profilePhoto: null
+      });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.role === 'doctor') {
+      loadAvailabilities();
+    }
+  }, [user]);
+
+  // Socket event listeners
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (data) => {
+      const { chatId, message } = data;
+      if (selectedChat && selectedChat._id === chatId) {
+        setChatMessages(prev => [...prev, message]);
+      }
+      // Update chats list
+      setChats(prev => prev.map(chat =>
+        chat._id === chatId ? { ...chat, lastMessage: new Date(), messages: [...chat.messages, message] } : chat
+      ));
+    };
+
+    const handleChatUpdated = (data) => {
+      setChats(prev => prev.map(chat =>
+        chat._id === data.chat._id ? { ...chat, ...data.chat } : chat
+      ));
+    };
+
+    const handleAppointmentUpdated = (appointment) => {
+      setAppointments(prev => prev.map(app =>
+        app._id === appointment._id ? appointment : app
+      ));
+    };
+
+    const handleAppointmentCreated = (appointment) => {
+      setAppointments(prev => [appointment, ...prev]);
+    };
+
+    const handleDashboardUpdate = () => {
+      fetchDashboardData();
+    };
+
+    socket.on('new_message', handleNewMessage);
+    socket.on('chat_updated', handleChatUpdated);
+    socket.on('appointment_updated', handleAppointmentUpdated);
+    socket.on('appointment_created', handleAppointmentCreated);
+    socket.on('dashboard_update', handleDashboardUpdate);
+
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.off('chat_updated', handleChatUpdated);
+      socket.off('appointment_updated', handleAppointmentUpdated);
+      socket.off('appointment_created', handleAppointmentCreated);
+      socket.off('dashboard_update', handleDashboardUpdate);
+    };
+  }, [socket, selectedChat]);
 
   const fetchDashboardData = async () => {
     try {
@@ -98,6 +199,94 @@ const DoctorDashboard = () => {
     }
   };
 
+  const handleProfileUpdate = async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('name', profileForm.name);
+    formData.append('specialization', profileForm.specialization);
+    formData.append('experience', profileForm.experience);
+    formData.append('workLocation', profileForm.workLocation);
+    formData.append('hospital', profileForm.hospital);
+    formData.append('bio', profileForm.bio);
+    formData.append('phone', profileForm.phone);
+    formData.append('address', profileForm.address);
+    if (profileForm.profilePhoto) {
+      formData.append('profilePhoto', profileForm.profilePhoto);
+    }
+
+    console.log('Frontend: Sending profile update - workLocation:', profileForm.workLocation, 'hospital:', profileForm.hospital);
+
+    try {
+      const res = await fetch('http://localhost:5000/api/auth/profile', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${user.token}` },
+        body: formData
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        // Update local user state, preserving existing token
+        const mergedUser = { ...user, ...updatedUser };
+        localStorage.setItem('user', JSON.stringify(mergedUser));
+        setUser(mergedUser);
+        setUserDetails(updatedUser);
+        setIsEditingProfile(false);
+        setShowSuccessModal(true);
+      } else {
+         try {
+           const errorData = await res.json();
+           alert(errorData.message || 'Failed to update profile');
+         } catch {
+           alert('Failed to update profile');
+         }
+       }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Error updating profile');
+    }
+  };
+
+  const handleUpdateFee = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`
+        },
+        body: JSON.stringify({ consultationFees: Number(newFee) })
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        // Update local user state, preserving existing token
+        const mergedUser = { ...user, ...updatedUser };
+        localStorage.setItem('user', JSON.stringify(mergedUser));
+        setUser(mergedUser);
+        setFee(Number(newFee));
+        setNewFee('');
+        setShowFeeSuccessModal(true);
+      } else {
+         try {
+           const errorData = await res.json();
+           alert(errorData.message || 'Failed to update fee');
+         } catch {
+           alert('Failed to update fee');
+         }
+       }
+    } catch (error) {
+      console.error('Error updating fee:', error);
+      alert('Error updating fee');
+    }
+  };
+
+  const handleProfileFormChange = (e) => {
+    const { name, value } = e.target;
+    setProfileForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e) => {
+    setProfileForm(prev => ({ ...prev, profilePhoto: e.target.files[0] }));
+  };
+
   const handleDropdownToggle = () => {
     setIsDropdownOpen(!isDropdownOpen);
     if (!isDropdownOpen && user) {
@@ -121,6 +310,113 @@ const DoctorDashboard = () => {
       }
     } catch (error) {
       console.error('Error updating appointment:', error);
+    }
+  };
+
+  const loadAvailabilities = async () => {
+    try {
+      setAvailabilityLoading(true);
+      const res = await fetch('http://localhost:5000/api/doctor/availability', {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailabilitySlots(data.availabilities);
+      } else {
+        console.error('Failed to load availabilities');
+      }
+    } catch (error) {
+      console.error('Error loading availabilities:', error);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const addAvailability = async () => {
+    if (!newSlot.day || !newSlot.startTime || !newSlot.endTime) {
+      alert('Please fill in all fields');
+      return;
+    }
+    try {
+      setAvailabilityLoading(true);
+      const res = await fetch('http://localhost:5000/api/doctor/availability', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`
+        },
+        body: JSON.stringify(newSlot)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailabilitySlots(prev => [...prev, data.availability]);
+        setNewSlot({ day: '', startTime: '', endTime: '' });
+        setAvailabilitySuccess('Availability slot added successfully');
+        setTimeout(() => setAvailabilitySuccess(null), 3000);
+      } else {
+        const error = await res.json();
+        alert(error.message || 'Failed to add availability');
+      }
+    } catch (error) {
+      console.error('Error adding availability:', error);
+      alert('Error adding availability');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const editAvailability = async (id, updatedSlot) => {
+    try {
+      setAvailabilityLoading(true);
+      const res = await fetch(`http://localhost:5000/api/doctor/availability/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`
+        },
+        body: JSON.stringify(updatedSlot)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailabilitySlots(prev => prev.map(slot =>
+          slot._id === id ? data.availability : slot
+        ));
+        setEditingSlot(null);
+        setAvailabilitySuccess('Availability slot updated successfully');
+        setTimeout(() => setAvailabilitySuccess(null), 3000);
+      } else {
+        const error = await res.json();
+        alert(error.message || 'Failed to update availability');
+      }
+    } catch (error) {
+      console.error('Error updating availability:', error);
+      alert('Error updating availability');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const deleteAvailability = async (id) => {
+    if (!confirm('Are you sure you want to delete this availability slot?')) return;
+    try {
+      setAvailabilityLoading(true);
+      const res = await fetch(`http://localhost:5000/api/doctor/availability/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      if (res.ok) {
+        setAvailabilitySlots(prev => prev.filter(slot => slot._id !== id));
+        setAvailabilitySuccess('Availability slot deleted successfully');
+        setTimeout(() => setAvailabilitySuccess(null), 3000);
+      } else {
+        const error = await res.json();
+        alert(error.message || 'Failed to delete availability');
+      }
+    } catch (error) {
+      console.error('Error deleting availability:', error);
+      alert('Error deleting availability');
+    } finally {
+      setAvailabilityLoading(false);
     }
   };
 
@@ -263,6 +559,9 @@ const DoctorDashboard = () => {
 
   const openChat = async (chat) => {
     setSelectedChat(chat);
+    if (socket) {
+      socket.emit('join_chat', chat._id);
+    }
     try {
       const res = await fetch(`http://localhost:5000/api/chats/${chat._id}/messages`, {
         headers: { Authorization: `Bearer ${user.token}` }
@@ -277,21 +576,10 @@ const DoctorDashboard = () => {
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !socket) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/chats/${selectedChat._id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.token}`
-        },
-        body: JSON.stringify({ content: newMessage })
-      });
-      if (res.ok) {
-        const updatedChat = await res.json();
-        setChatMessages(updatedChat.messages);
-        setNewMessage('');
-      }
+      socket.emit('send_message', { chatId: selectedChat._id, content: newMessage });
+      setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -300,18 +588,27 @@ const DoctorDashboard = () => {
   const renderMessages = () => {
 
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-6">Patient Messages</h2>
+      <section className="bg-white rounded-lg shadow-md p-6" aria-labelledby="messages-heading">
+        <h2 id="messages-heading" className="text-xl font-semibold mb-6">Patient Messages</h2>
         <div className="flex h-96">
-          <div className="w-1/3 border-r pr-4">
-            <div className="space-y-2">
+          <aside className="w-1/3 border-r pr-4" aria-label="Chat list">
+            <div className="space-y-2" role="listbox" aria-label="Available chats">
               {chats.map(chat => (
                 <div
                   key={chat._id}
                   onClick={() => openChat(chat)}
-                  className={`p-3 rounded cursor-pointer ${
+                  className={`p-3 rounded cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                     selectedChat?._id === chat._id ? 'bg-blue-100' : 'hover:bg-gray-50'
                   }`}
+                  role="option"
+                  aria-selected={selectedChat?._id === chat._id}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openChat(chat);
+                    }
+                  }}
                 >
                   <h3 className="font-semibold text-sm">
                     {chat.participants.find(p => p._id !== user._id)?.name}
@@ -322,11 +619,17 @@ const DoctorDashboard = () => {
                 </div>
               ))}
             </div>
-          </div>
-          <div className="w-2/3 pl-4 flex flex-col">
+          </aside>
+          <main className="w-2/3 pl-4 flex flex-col" aria-label="Chat conversation">
             {selectedChat ? (
               <>
-                <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+                <div
+                  className="flex-1 overflow-y-auto space-y-2 mb-4"
+                  role="log"
+                  aria-label="Chat messages"
+                  aria-live="polite"
+                  aria-atomic="false"
+                >
                   {chatMessages.map(msg => (
                     <div
                       key={msg._id}
@@ -344,138 +647,171 @@ const DoctorDashboard = () => {
                   ))}
                 </div>
                 <div className="flex space-x-2">
+                  <label htmlFor="message-input" className="sr-only">Type your message</label>
                   <input
+                    id="message-input"
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                     placeholder="Type a message..."
-                    className="flex-1 px-3 py-2 border rounded"
+                    className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
                     onClick={sendMessage}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    disabled={!newMessage.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                    aria-label="Send message"
                   >
                     Send
                   </button>
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
+              <div className="flex items-center justify-center h-full text-gray-500" role="status">
                 Select a conversation to start messaging
               </div>
             )}
-          </div>
+          </main>
         </div>
-      </div>
+      </section>
     );
   };
 
   const renderAvailability = () => {
     const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-    const handleSave = async () => {
-      try {
-        const res = await fetch('http://localhost:5000/api/auth/profile', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${user.token}`
-          },
-          body: JSON.stringify({ availability })
-        });
-
-        if (res.ok) {
-          setIsEditingAvailability(false);
-          // Update user context
-          const updatedUser = { ...user, availability };
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-          setUser(updatedUser);
-        }
-      } catch (error) {
-        console.error('Error updating availability:', error);
-      }
-    };
-
-    const updateAvailability = (day, field, value) => {
-      setAvailability(prev => prev.map(item =>
-        item.day === day ? { ...item, [field]: value } : item
-      ));
-    };
-
-    const toggleDay = (day) => {
-      const existing = availability.find(item => item.day === day);
-      if (existing) {
-        setAvailability(prev => prev.filter(item => item.day !== day));
-      } else {
-        setAvailability(prev => [...prev, { day, startTime: '09:00', endTime: '17:00', isAvailable: true }]);
-      }
-    };
-
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Availability Scheduler</h2>
-          <button
-            onClick={() => setIsEditingAvailability(!isEditingAvailability)}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            {isEditingAvailability ? 'Cancel' : 'Edit'}
-          </button>
+        <h2 className="text-xl font-semibold mb-6">Availability Management</h2>
+
+        {availabilitySuccess && (
+          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+            {availabilitySuccess}
+          </div>
+        )}
+
+        {/* Add New Availability Form */}
+        <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+          <h3 className="text-lg font-medium mb-4">Add New Availability Slot</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <select
+              value={newSlot.day}
+              onChange={(e) => setNewSlot(prev => ({ ...prev, day: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Day</option>
+              {days.map(day => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+            <input
+              type="time"
+              value={newSlot.startTime}
+              onChange={(e) => setNewSlot(prev => ({ ...prev, startTime: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="time"
+              value={newSlot.endTime}
+              onChange={(e) => setNewSlot(prev => ({ ...prev, endTime: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              onClick={addAvailability}
+              disabled={availabilityLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {availabilityLoading ? 'Adding...' : 'Add Availability'}
+            </button>
+          </div>
         </div>
 
-        {isEditingAvailability ? (
-          <div className="space-y-4">
-            {days.map(day => {
-              const dayAvailability = availability.find(item => item.day === day);
-              return (
-                <div key={day} className="flex items-center space-x-4 p-4 border rounded">
-                  <input
-                    type="checkbox"
-                    checked={!!dayAvailability}
-                    onChange={() => toggleDay(day)}
-                    className="w-4 h-4"
-                  />
-                  <span className="w-20">{day}</span>
-                  {dayAvailability && (
-                    <>
+        {/* Current Availability Slots */}
+        <div>
+          <h3 className="text-lg font-medium mb-4">Current Availability Slots</h3>
+          {availabilityLoading && availabilitySlots.length === 0 ? (
+            <div className="text-center py-4">Loading...</div>
+          ) : availabilitySlots.length > 0 ? (
+            <div className="space-y-3">
+              {availabilitySlots.map(slot => (
+                <div key={slot._id} className="flex items-center justify-between p-4 border rounded-lg">
+                  {editingSlot === slot._id ? (
+                    <div className="flex items-center space-x-4 flex-1">
+                      <select
+                        value={slot.day}
+                        onChange={(e) => setAvailabilitySlots(prev => prev.map(s =>
+                          s._id === slot._id ? { ...s, day: e.target.value } : s
+                        ))}
+                        className="px-2 py-1 border rounded"
+                      >
+                        {days.map(day => (
+                          <option key={day} value={day}>{day}</option>
+                        ))}
+                      </select>
                       <input
                         type="time"
-                        value={dayAvailability.startTime}
-                        onChange={(e) => updateAvailability(day, 'startTime', e.target.value)}
+                        value={slot.startTime}
+                        onChange={(e) => setAvailabilitySlots(prev => prev.map(s =>
+                          s._id === slot._id ? { ...s, startTime: e.target.value } : s
+                        ))}
                         className="px-2 py-1 border rounded"
                       />
                       <span>to</span>
                       <input
                         type="time"
-                        value={dayAvailability.endTime}
-                        onChange={(e) => updateAvailability(day, 'endTime', e.target.value)}
+                        value={slot.endTime}
+                        onChange={(e) => setAvailabilitySlots(prev => prev.map(s =>
+                          s._id === slot._id ? { ...s, endTime: e.target.value } : s
+                        ))}
                         className="px-2 py-1 border rounded"
                       />
+                      <button
+                        onClick={() => editAvailability(slot._id, {
+                          day: slot.day,
+                          startTime: slot.startTime,
+                          endTime: slot.endTime
+                        })}
+                        className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingSlot(null)}
+                        className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <span className="font-medium">{slot.day}</span>
+                        <span className="ml-4 text-gray-600">{slot.startTime} - {slot.endTime}</span>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setEditingSlot(slot._id)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteAvailability(slot._id)}
+                          className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
-              );
-            })}
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              Save Changes
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {availability.length > 0 ? availability.map(item => (
-              <div key={item.day} className="flex justify-between p-3 bg-gray-50 rounded">
-                <span className="font-medium">{item.day}</span>
-                <span>{item.startTime} - {item.endTime}</span>
-              </div>
-            )) : (
-              <p className="text-gray-600">No availability set</p>
-            )}
-          </div>
-        )}
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-600 text-center py-4">No availability slots added yet</p>
+          )}
+        </div>
       </div>
     );
   };
@@ -622,42 +958,256 @@ const DoctorDashboard = () => {
   const renderFee = () => (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-semibold mb-6">Consultation Fee Management</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Current Fee</label>
-          <p className="text-2xl font-bold text-green-600">${user.consultationFee || 0}</p>
+      <div className="space-y-6">
+        {/* Current Fee Display Box */}
+        <div className="bg-gray-50 p-6 rounded-lg border">
+          <h3 className="text-lg font-medium text-gray-700 mb-2">Current Consultation Fee</h3>
+          <p className="text-3xl font-bold text-green-600">${fee}</p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-          Update Fee
-        </button>
+
+        {/* Update Fee Box */}
+        <div className="bg-white p-6 rounded-lg border border-gray-300">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Update Consultation Fee</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">New Fee ($)</label>
+              <input
+                type="number"
+                value={newFee}
+                onChange={(e) => setNewFee(e.target.value)}
+                placeholder="Enter new consultation fee"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <button
+              onClick={handleUpdateFee}
+              disabled={!newFee || Number(newFee) <= 0}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Update Fee
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
 
   const renderProfile = () => (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-semibold mb-6">Profile & Settings</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Name</label>
-          <p>{user.name}</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
-          <p>{user.email}</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Specialization</label>
-          <p>{user.specialization || 'Not set'}</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Experience</label>
-          <p>{user.experience ? `${user.experience} years` : 'Not set'}</p>
-        </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-          Edit Profile
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold">Profile & Settings</h2>
+        <button
+          onClick={() => setIsEditingProfile(!isEditingProfile)}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          {isEditingProfile ? 'Cancel' : 'Edit Profile'}
         </button>
       </div>
+      {isEditingProfile ? (
+        <form onSubmit={handleProfileUpdate} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Name</label>
+            <input
+              type="text"
+              name="name"
+              value={profileForm.name}
+              onChange={handleProfileFormChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <p className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100">{user.email}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Specialization</label>
+            <input
+              type="text"
+              name="specialization"
+              value={profileForm.specialization}
+              onChange={handleProfileFormChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Experience (years)</label>
+            <input
+              type="number"
+              name="experience"
+              value={profileForm.experience}
+              onChange={handleProfileFormChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Work Location</label>
+            <input
+              type="text"
+              name="workLocation"
+              value={profileForm.workLocation}
+              onChange={handleProfileFormChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Hospital</label>
+            <input
+              type="text"
+              name="hospital"
+              value={profileForm.hospital}
+              onChange={handleProfileFormChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Bio</label>
+            <textarea
+              name="bio"
+              value={profileForm.bio}
+              onChange={handleProfileFormChange}
+              rows="4"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Phone</label>
+            <input
+              type="text"
+              name="phone"
+              value={profileForm.phone}
+              onChange={handleProfileFormChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Address</label>
+            <input
+              type="text"
+              name="address"
+              value={profileForm.address}
+              onChange={handleProfileFormChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Profile Picture</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Save Changes
+          </button>
+        </form>
+      ) : (
+        <div className="space-y-6">
+          {/* Profile Header Card */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-8 text-white shadow-lg">
+            <div className="flex items-center space-x-6">
+              {user?.profilePhoto ? (
+                (() => {
+                  const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
+                  const imageSrc = `http://localhost:5000/uploads/${cleanPath}`;
+                  console.log('Profile image src:', imageSrc);
+                  return (
+                    <img
+                      src={imageSrc}
+                      alt="Profile"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"
+                      onError={(e) => console.error('Image load error:', e)}
+                    />
+                  );
+                })()
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center border-4 border-white shadow-md">
+                  <User className="w-12 h-12 text-white" />
+                </div>
+              )}
+              <div>
+                <h3 className="text-3xl font-bold">{user.name}</h3>
+                <p className="text-blue-100 text-lg">{user.email}</p>
+                {user.specialization && <p className="text-blue-200 mt-1">{user.specialization}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Profile Details Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-lg p-6 shadow-md border border-gray-200">
+              <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <User className="w-5 h-5 mr-2 text-blue-600" />
+                Personal Information
+              </h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Full Name</label>
+                  <p className="text-gray-900 font-medium">{user.name}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Email Address</label>
+                  <p className="text-gray-900">{user.email}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Phone Number</label>
+                  <p className="text-gray-900">{user.contactDetails?.phone || 'Not set'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 shadow-md border border-gray-200">
+              <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <Briefcase className="w-5 h-5 mr-2 text-blue-600" />
+                Professional Details
+              </h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Specialization</label>
+                  <p className="text-gray-900 font-medium">{user.specialization || 'Not set'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Experience</label>
+                  <p className="text-gray-900">{user.experience ? `${user.experience} years` : 'Not set'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Hospital</label>
+                  <p className="text-gray-900">{user.hospital || 'Not set'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600">Work Location</label>
+                  <p className="text-gray-900">{user.workLocation || 'Not set'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bio and Address Section */}
+          <div className="bg-white rounded-lg p-6 shadow-md border border-gray-200">
+            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <FileText className="w-5 h-5 mr-2 text-blue-600" />
+              Additional Information
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Bio</label>
+                <p className="text-gray-900 leading-relaxed">{user.bio || 'No bio available'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Address</label>
+                <p className="text-gray-900">{user.contactDetails?.address || 'Not set'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -668,16 +1218,36 @@ const DoctorDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* User Icon Header */}
-      <div className="bg-white shadow-md">
+      <header className="bg-white shadow-md" role="banner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-end items-center py-4">
             <div className="relative">
               <button
                 onClick={handleDropdownToggle}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                aria-label="User menu"
+                aria-expanded={isDropdownOpen}
+                aria-haspopup="true"
               >
-                <User className="w-5 h-5" />
-                <ChevronDown className="w-4 h-4" />
+                {user?.profilePhoto ? (
+                  (() => {
+                    const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
+                    const imageSrc = `http://localhost:5000/uploads/${cleanPath}`;
+                    console.log('Header profile image src:', imageSrc);
+                    return (
+                      <img
+                        src={imageSrc}
+                        alt="Profile"
+                        className="w-5 h-5 rounded-full object-cover"
+                        aria-hidden="true"
+                        onError={(e) => console.error('Header image load error:', e)}
+                      />
+                    );
+                  })()
+                ) : (
+                  <User className="w-5 h-5" aria-hidden="true" />
+                )}
+                <ChevronDown className="w-4 h-4" aria-hidden="true" />
               </button>
               {isDropdownOpen && (
                 <>
@@ -687,7 +1257,7 @@ const DoctorDashboard = () => {
                   >
                     <X className="w-3 h-3" />
                   </button>
-                  <div className="absolute right-0 mt-2 w-64 sm:w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-96 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-64 sm:w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
                     <div className="relative p-4">
                       <button
                         onClick={() => setIsDropdownOpen(false)}
@@ -739,10 +1309,16 @@ const DoctorDashboard = () => {
                                   <span>{userDetails.workLocation}</span>
                                 </div>
                               )}
-                              {userDetails?.consultationFee && (
+                              {userDetails?.consultationFees && (
                                 <div className="flex justify-between">
                                   <span className="font-medium">Fee:</span>
-                                  <span>${userDetails.consultationFee}</span>
+                                  <span>${userDetails.consultationFees}</span>
+                                </div>
+                              )}
+                              {userDetails?.hospital && (
+                                <div className="flex justify-between">
+                                  <span className="font-medium">Hospital:</span>
+                                  <span>{userDetails.hospital}</span>
                                 </div>
                               )}
                             </div>
@@ -769,9 +1345,9 @@ const DoctorDashboard = () => {
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content">
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="lg:w-1/4">
             <div className="bg-white rounded-lg shadow-md p-6">
@@ -809,7 +1385,39 @@ const DoctorDashboard = () => {
             {activeTab === 'profile' && renderProfile()}
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Success</h3>
+            <p className="mb-4">Profile updated successfully</p>
+            <button
+              onClick={() => setShowSuccessModal(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Fee Success Modal */}
+      {showFeeSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Success</h3>
+            <p className="mb-4">Fees updated successfully</p>
+            <button
+              onClick={() => setShowFeeSuccessModal(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

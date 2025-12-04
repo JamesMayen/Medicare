@@ -1,0 +1,29 @@
+{
+  "name": "medicare_system",
+  "version": "1.0.0",
+  "description": "A full-stack MERN (MongoDB, Express.js, React, Node.js) application for healthcare management, enabling patients to book appointments and communicate with doctors through a secure chat system.\r **Frontend URL**: https://medicare-system.vercel.app/\r **Backend URL**:https://medicare-system-5027.onrender.com/",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui",
+    "e2e:debug": "playwright test --debug",
+    "e2e:report": "playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JamesMayen/Medicare.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/JamesMayen/Medicare/issues"
+  },
+  "homepage": "https://github.com/JamesMayen/Medicare#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0"
+  }
+}

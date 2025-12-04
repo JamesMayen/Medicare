@@ -46,6 +46,21 @@ export const AuthProvider = ({ children }) => {
         const { token, ...userData } = data;
         localStorage.setItem('user', JSON.stringify(userData));
         setUser({ ...userData, token });
+
+        // Fetch complete profile to ensure we have all fields including createdAt
+        try {
+          const profileRes = await fetch('http://localhost:5000/api/auth/profile', {
+            headers: { Authorization: `Bearer ${data.token}` }
+          });
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            localStorage.setItem('user', JSON.stringify(profileData));
+            setUser({ ...profileData, token: data.token });
+          }
+        } catch (profileErr) {
+          console.error('Error fetching profile after login:', profileErr);
+        }
+
         return { success: true };
       } else {
         return { success: false, message: data.message || 'Login failed' };
@@ -71,6 +86,21 @@ export const AuthProvider = ({ children }) => {
         const { token, ...userData } = data;
         localStorage.setItem('user', JSON.stringify(userData));
         setUser({ ...userData, token });
+
+        // Fetch complete profile to ensure we have all fields including createdAt
+        try {
+          const profileRes = await fetch('http://localhost:5000/api/auth/profile', {
+            headers: { Authorization: `Bearer ${data.token}` }
+          });
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            localStorage.setItem('user', JSON.stringify(profileData));
+            setUser({ ...profileData, token: data.token });
+          }
+        } catch (profileErr) {
+          console.error('Error fetching profile after register:', profileErr);
+        }
+
         return { success: true };
       } else {
         return { success: false, message: data.message || 'Registration failed' };
@@ -87,8 +117,12 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const isAdmin = () => {
+    return user && user.role === 'admin';
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, setUser, login, register, logout, loading, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

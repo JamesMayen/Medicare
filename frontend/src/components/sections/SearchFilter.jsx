@@ -48,44 +48,56 @@ const SearchFilter = () => {
   };
 
   return (
-    <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-xl p-6 shadow-lg">
+    <section className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-xl p-6 shadow-lg" aria-label="Doctor search and filter">
       {/* Search Row */}
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
         {/* Search Input */}
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+          <label htmlFor="search-doctors" className="sr-only">Search for doctors, specialties, or hospitals</label>
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" aria-hidden="true" />
           <input
+            id="search-doctors"
             type="text"
             placeholder="Search Doctors, Specialties, or Hospitals..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+            aria-describedby="search-help"
           />
+          <div id="search-help" className="sr-only">Enter keywords to search for doctors by name, specialty, or hospital</div>
         </div>
 
         {/* Specialty Dropdown */}
-        <select
-          value={selectedSpecialty}
-          onChange={(e) => setSelectedSpecialty(e.target.value)}
-          className="lg:w-48 py-3 px-3 cursor-pointer rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
-        >
-          <option value="">Specialty</option>
-          {specialties.map((specialty) => (
-            <option key={specialty} value={specialty.toLowerCase()}>
-              {specialty}
-            </option>
-          ))}
-        </select>
+        <div className="lg:w-48">
+          <label htmlFor="specialty-select" className="sr-only">Filter by medical specialty</label>
+          <select
+            id="specialty-select"
+            value={selectedSpecialty}
+            onChange={(e) => setSelectedSpecialty(e.target.value)}
+            className="w-full py-3 px-3 cursor-pointer rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+            aria-label="Select medical specialty"
+          >
+            <option value="">All Specialties</option>
+            {specialties.map((specialty) => (
+              <option key={specialty} value={specialty.toLowerCase()}>
+                {specialty}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Location Dropdown */}
         <div className="relative lg:w-48">
-          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-600" />
+          <label htmlFor="location-select" className="sr-only">Filter by location</label>
+          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-600" aria-hidden="true" />
           <select
+            id="location-select"
             value={selectedLocation}
             onChange={(e) => setSelectedLocation(e.target.value)}
             className="w-full py-3 pl-9 pr-3 cursor-pointer rounded-lg border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+            aria-label="Select location"
           >
-            <option value="">Location</option>
+            <option value="">All Locations</option>
             {locations.map((location) => (
               <option key={location} value={location.toLowerCase()}>
                 {location}
@@ -95,9 +107,12 @@ const SearchFilter = () => {
         </div>
 
         {/* Search Button */}
-        <button className="px-8 py-3 rounded-lg bg-gradient-to-r from-blue-700 to-blue-500 text-white font-medium hover:opacity-90 transition">
+        <button
+          className="px-8 py-3 rounded-lg bg-gradient-to-r from-blue-700 to-blue-500 text-white font-medium hover:opacity-90 transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          aria-label="Search for doctors with current filters"
+        >
           <div className="flex items-center cursor-pointer justify-center space-x-2">
-            <Search className="w-4 h-4" />
+            <Search className="w-4 h-4" aria-hidden="true" />
             <span>Search</span>
           </div>
         </button>
@@ -106,13 +121,13 @@ const SearchFilter = () => {
       {/* Quick Filters */}
       <div className="space-y-4">
         <div className="flex items-center space-x-2">
-          <Filter className="w-4 h-4 text-gray-500" />
+          <Filter className="w-4 h-4 text-gray-500" aria-hidden="true" />
           <span className="text-sm font-medium text-gray-800">
             Quick Filters:
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick filter options">
           {quickFilters.map((filter) => (
             <button
               key={filter}
@@ -121,15 +136,17 @@ const SearchFilter = () => {
                   ? removeFilter(filter)
                   : addFilter(filter)
               }
-              className={`px-3 py-1.5 rounded-full border text-sm transition-all duration-200 flex items-center ${
+              className={`px-3 py-1.5 rounded-full border text-sm transition-all duration-200 flex items-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                 selectedFilters.includes(filter)
                   ? "bg-blue-600 text-white border-blue-600"
                   : "border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50"
               }`}
+              aria-pressed={selectedFilters.includes(filter)}
+              aria-label={`${selectedFilters.includes(filter) ? 'Remove' : 'Add'} ${filter} filter`}
             >
               {filter}
               {selectedFilters.includes(filter) && (
-                <X className="w-3 h-3 ml-1" />
+                <X className="w-3 h-3 ml-1" aria-hidden="true" />
               )}
             </button>
           ))}
@@ -137,7 +154,7 @@ const SearchFilter = () => {
 
         {/* Active Filters */}
         {selectedFilters.length > 0 && (
-          <div className="flex items-start flex-wrap gap-2 pt-3 border-t border-gray-200">
+          <div className="flex items-start flex-wrap gap-2 pt-3 border-t border-gray-200" aria-label="Active filters">
             <span className="text-sm text-gray-500">Active:</span>
             {selectedFilters.map((filter) => (
               <div
@@ -147,16 +164,17 @@ const SearchFilter = () => {
                 {filter}
                 <button
                   onClick={() => removeFilter(filter)}
-                  className="ml-1 hover:bg-blue-100 rounded-full p-0.5"
+                  className="ml-1 hover:bg-blue-100 rounded-full p-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  aria-label={`Remove ${filter} filter`}
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3 h-3" aria-hidden="true" />
                 </button>
               </div>
             ))}
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 };
 
