@@ -49,7 +49,31 @@ export const createAppointment = async (req, res) => {
       return res.status(400).json({ message: "Invalid doctor" });
     }
 
-    // Check availability
+    // Check if slot is within doctor's availability
+    const dateObj = new Date(date);
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOfWeek = daysOfWeek[dateObj.getDay()];
+
+    const Availability = (await import("../models/availability.js")).default;
+    const doctorAvailability = await Availability.findOne({
+      doctor,
+      day: dayOfWeek
+    });
+
+    if (!doctorAvailability) {
+      return res.status(400).json({ message: "Doctor is not available on this day" });
+    }
+
+    // Check if requested time is within availability
+    const requestedMinutes = parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]);
+    const availStartMinutes = parseInt(doctorAvailability.startTime.split(':')[0]) * 60 + parseInt(doctorAvailability.startTime.split(':')[1]);
+    const availEndMinutes = parseInt(doctorAvailability.endTime.split(':')[0]) * 60 + parseInt(doctorAvailability.endTime.split(':')[1]);
+
+    if (requestedMinutes < availStartMinutes || requestedMinutes >= availEndMinutes) {
+      return res.status(400).json({ message: "Requested time is outside doctor's availability" });
+    }
+
+    // Check if slot is already booked
     const existingAppointment = await Appointment.findOne({
       doctor,
       date,
@@ -103,11 +127,38 @@ export const getAvailableSlots = async (req, res) => {
       return res.status(400).json({ message: "Invalid doctor" });
     }
 
-    // Predefined slots: 9:00 AM to 5:00 PM in 1-hour intervals
-    const slots = [];
-    for (let h = 9; h <= 17; h++) {
-      slots.push(`${h.toString().padStart(2, '0')}:00`);
+    // Get day of week from date
+    const dateObj = new Date(date);
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOfWeek = daysOfWeek[dateObj.getDay()];
+
+    // Get doctor's availability for this day
+    const Availability = (await import("../models/availability.js")).default;
+    const availabilities = await Availability.find({
+      doctor: doctorId,
+      day: dayOfWeek
+    });
+
+    if (availabilities.length === 0) {
+      return res.json({ availableSlots: [] }); // No availability for this day
     }
+
+    // Generate slots from availabilities (1-hour intervals)
+    const slots = [];
+    availabilities.forEach(avail => {
+      const startHour = parseInt(avail.startTime.split(':')[0]);
+      const startMin = parseInt(avail.startTime.split(':')[1]) || 0;
+      const endHour = parseInt(avail.endTime.split(':')[0]);
+      const endMin = parseInt(avail.endTime.split(':')[1]) || 0;
+
+      for (let h = startHour; h < endHour; h++) {
+        slots.push(`${h.toString().padStart(2, '0')}:00`);
+      }
+      // If end time has minutes, might need adjustment, but for now assume :00
+    });
+
+    // Remove duplicates
+    const uniqueSlots = [...new Set(slots)];
 
     // Get booked confirmed appointments
     const bookedAppointments = await Appointment.find({
@@ -119,7 +170,7 @@ export const getAvailableSlots = async (req, res) => {
     const bookedTimes = bookedAppointments.map(a => a.time);
 
     // Available slots
-    const availableSlots = slots.filter(slot => !bookedTimes.includes(slot));
+    const availableSlots = uniqueSlots.filter(slot => !bookedTimes.includes(slot));
 
     res.json({ availableSlots });
   } catch (error) {
@@ -182,6 +233,41 @@ export const updateAppointment = async (req, res) => {
       if (req.user._id.toString() !== appointment.patient.toString()) {
         return res.status(401).json({ message: "Only patients can request rescheduling" });
       }
+      // Check if new slot is within doctor's availability
+      const newDate = date || appointment.date;
+      const newTime = time || appointment.time;
+      const dateObj = new Date(newDate);
+      const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayOfWeek = daysOfWeek[dateObj.getDay()];
+
+      const Availability = (await import("../models/availability.js")).default;
+      const doctorAvailability = await Availability.findOne({
+        doctor: appointment.doctor,
+        day: dayOfWeek
+      });
+
+      if (!doctorAvailability) {
+        return res.status(400).json({ message: "Doctor is not available on the requested day" });
+      }
+
+      const requestedMinutes = parseInt(newTime.split(':')[0]) * 60 + parseInt(newTime.split(':')[1]);
+      const availStartMinutes = parseInt(doctorAvailability.startTime.split(':')[0]) * 60 + parseInt(doctorAvailability.startTime.split(':')[1]);
+      const availEndMinutes = parseInt(doctorAvailability.endTime.split(':')[0]) * 60 + parseInt(doctorAvailability.endTime.split(':')[1]);
+
+      if (requestedMinutes < availStartMinutes || requestedMinutes >= availEndMinutes) {
+        return res.status(400).json({ message: "Requested time is outside doctor's availability" });
+      }
+
+      // Check if new slot is already booked
+      const existingAppointment = await Appointment.findOne({
+        doctor: appointment.doctor,
+        date: newDate,
+        time: newTime,
+        status: 'confirmed'
+      });
+      if (existingAppointment) {
+        return res.status(400).json({ message: "New time slot is not available" });
+      }
       appointment.status = 'pending';
     } else {
       appointment.status = status || appointment.status;
@@ -190,6 +276,44 @@ export const updateAppointment = async (req, res) => {
     appointment.notes = notes ? notes.trim() : appointment.notes;
     appointment.date = date || appointment.date;
     appointment.time = time || appointment.time;
+
+    // Check availability if confirming appointment
+    if (appointment.status === 'confirmed') {
+      // Check if slot is within doctor's availability
+      const dateObj = new Date(appointment.date);
+      const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayOfWeek = daysOfWeek[dateObj.getDay()];
+
+      const Availability = (await import("../models/availability.js")).default;
+      const doctorAvailability = await Availability.findOne({
+        doctor: appointment.doctor,
+        day: dayOfWeek
+      });
+
+      if (!doctorAvailability) {
+        return res.status(400).json({ message: "Doctor is not available on this day" });
+      }
+
+      const requestedMinutes = parseInt(appointment.time.split(':')[0]) * 60 + parseInt(appointment.time.split(':')[1]);
+      const availStartMinutes = parseInt(doctorAvailability.startTime.split(':')[0]) * 60 + parseInt(doctorAvailability.startTime.split(':')[1]);
+      const availEndMinutes = parseInt(doctorAvailability.endTime.split(':')[0]) * 60 + parseInt(doctorAvailability.endTime.split(':')[1]);
+
+      if (requestedMinutes < availStartMinutes || requestedMinutes >= availEndMinutes) {
+        return res.status(400).json({ message: "Appointment time is outside doctor's availability" });
+      }
+
+      // Check if slot is already booked
+      const existingAppointment = await Appointment.findOne({
+        doctor: appointment.doctor,
+        date: appointment.date,
+        time: appointment.time,
+        status: 'confirmed',
+        _id: { $ne: appointment._id }
+      });
+      if (existingAppointment) {
+        return res.status(400).json({ message: "Doctor is not available at this time" });
+      }
+    }
 
     const updatedAppointment = await appointment.save();
 

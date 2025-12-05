@@ -6,10 +6,14 @@ import {
   getAvailableSlots
 } from '../controllers/appointmentController.js';
 import Appointment from '../models/appointment.js';
+import Availability from '../models/availability.js';
+import User from '../models/user.js';
 import { io } from '../server.js';
 
 // Mock dependencies
 jest.mock('../models/appointment.js');
+jest.mock('../models/availability.js');
+jest.mock('../models/user.js');
 jest.mock('../server.js', () => ({
   io: {
     to: jest.fn().mockReturnThis(),
@@ -69,13 +73,16 @@ describe('Appointment Controller', () => {
     it('should create a new appointment', async () => {
       mockReq.body = {
         doctor: 'doc123',
-        date: '2023-12-01',
+        date: '2023-12-01', // Friday
         time: '10:00',
         reason: 'Checkup',
         type: 'in-person',
         fee: 100
       };
       mockReq.files = [{ path: 'uploads/doc1.pdf' }, { path: 'uploads/doc2.jpg' }];
+
+      User.findById.mockResolvedValue({ role: 'doctor' });
+      Availability.findOne.mockResolvedValue({ day: 'Friday', startTime: '09:00', endTime: '17:00' });
 
       const mockAppointment = {
         _id: 'appt123',
@@ -94,9 +101,20 @@ describe('Appointment Controller', () => {
         populate: jest.fn().mockReturnThis(),
         populate: jest.fn().mockResolvedValue(mockAppointment)
       });
+      Appointment.findOne.mockResolvedValue(null); // No existing appointment
 
       await createAppointment(mockReq, mockRes);
 
+      expect(Availability.findOne).toHaveBeenCalledWith({
+        doctor: 'doc123',
+        day: 'Friday'
+      });
+      expect(Appointment.findOne).toHaveBeenCalledWith({
+        doctor: 'doc123',
+        date: '2023-12-01',
+        time: '10:00',
+        status: 'confirmed'
+      });
       expect(Appointment.create).toHaveBeenCalledWith({
         patient: 'user123',
         doctor: 'doc123',
@@ -136,17 +154,23 @@ describe('Appointment Controller', () => {
     it('should check availability before creating appointment', async () => {
       mockReq.body = {
         doctor: 'doc123',
-        date: '2023-12-01',
+        date: '2023-12-01', // Friday
         time: '10:00',
         reason: 'Checkup',
         type: 'in-person',
         fee: 100
       };
 
+      User.findById.mockResolvedValue({ role: 'doctor' });
+      Availability.findOne.mockResolvedValue({ day: 'Friday', startTime: '09:00', endTime: '17:00' });
       Appointment.findOne.mockResolvedValue({ _id: 'existingAppt' }); // Slot taken
 
       await createAppointment(mockReq, mockRes);
 
+      expect(Availability.findOne).toHaveBeenCalledWith({
+        doctor: 'doc123',
+        day: 'Friday'
+      });
       expect(Appointment.findOne).toHaveBeenCalledWith({
         doctor: 'doc123',
         date: '2023-12-01',
@@ -258,7 +282,15 @@ describe('Appointment Controller', () => {
 
   describe('getAvailableSlots', () => {
     it('should return available slots for a doctor on a specific date', async () => {
-      mockReq.params = { doctorId: 'doc123', date: '2023-12-01' };
+      mockReq.params = { doctorId: 'doc123', date: '2023-12-01' }; // Friday
+
+      User.findById.mockResolvedValue({ role: 'doctor' });
+
+      const mockAvailability = [
+        { day: 'Friday', startTime: '09:00', endTime: '17:00' }
+      ];
+
+      Availability.find.mockResolvedValue(mockAvailability);
 
       const mockBookedAppointments = [
         { time: '10:00' },
@@ -271,18 +303,30 @@ describe('Appointment Controller', () => {
 
       await getAvailableSlots(mockReq, mockRes);
 
+      expect(Availability.find).toHaveBeenCalledWith({
+        doctor: 'doc123',
+        day: 'Friday'
+      });
       expect(Appointment.find).toHaveBeenCalledWith({
         doctor: 'doc123',
         date: '2023-12-01',
         status: 'confirmed'
       }, 'time');
       expect(mockRes.json).toHaveBeenCalledWith({
-        availableSlots: ['09:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
+        availableSlots: ['09:00', '12:00', '13:00', '14:00', '15:00', '16:00']
       });
     });
 
     it('should return all slots if no appointments booked', async () => {
-      mockReq.params = { doctorId: 'doc123', date: '2023-12-01' };
+      mockReq.params = { doctorId: 'doc123', date: '2023-12-01' }; // Friday
+
+      User.findById.mockResolvedValue({ role: 'doctor' });
+
+      const mockAvailability = [
+        { day: 'Friday', startTime: '09:00', endTime: '17:00' }
+      ];
+
+      Availability.find.mockResolvedValue(mockAvailability);
 
       Appointment.find.mockReturnValue({
         select: jest.fn().mockResolvedValue([])
@@ -291,7 +335,21 @@ describe('Appointment Controller', () => {
       await getAvailableSlots(mockReq, mockRes);
 
       expect(mockRes.json).toHaveBeenCalledWith({
-        availableSlots: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
+        availableSlots: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00']
+      });
+    });
+
+    it('should return empty slots if no availability', async () => {
+      mockReq.params = { doctorId: 'doc123', date: '2023-12-01' }; // Friday
+
+      User.findById.mockResolvedValue({ role: 'doctor' });
+
+      Availability.find.mockResolvedValue([]); // No availability
+
+      await getAvailableSlots(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        availableSlots: []
       });
     });
   });

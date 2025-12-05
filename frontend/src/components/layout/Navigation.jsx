@@ -19,7 +19,7 @@ const Navigation = () => {
 
   const fetchUserDetails = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/profile`, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       if (res.ok) {

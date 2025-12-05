@@ -16,8 +16,26 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "Please provide name, email, and password" });
     }
 
+    name = name.trim();
+    if (name.length < 2) {
+      return res.status(400).json({ message: "Name must be at least 2 characters long" });
+    }
+
     email = email.toLowerCase().trim();
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ message: "Please provide a valid email address" });
+    }
+
     password = password.trim();
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters long" });
+    }
+
+    if (role && !['patient', 'doctor'].includes(role)) {
+      return res.status(400).json({ message: "Invalid role. Must be 'patient' or 'doctor'" });
+    }
+
+    role = role || "patient";
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -53,7 +71,6 @@ export const registerUser = async (req, res) => {
         contactDetails: user.contactDetails,
         workLocation: user.workLocation,
         consultationFees: user.consultationFees,
-        availability: user.availability,
       }),
       token: generateToken({
         _id: user._id.toString(),
@@ -312,9 +329,14 @@ export const loginUser = async (req, res) => {
     password = password.trim();
 
     // Find user
-    const user = await User.findOne({ email: new RegExp(`^${email}$`, 'i') });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
+    }
+
+    // Check if account is active
+    if (user.status !== 'active') {
+      return res.status(403).json({ message: "Account is suspended or pending verification" });
     }
 
     // Compare password
@@ -337,7 +359,6 @@ export const loginUser = async (req, res) => {
         contactDetails: user.contactDetails,
         workLocation: user.workLocation,
         consultationFees: user.consultationFees,
-        availability: user.availability,
       }),
       token: generateToken({
         _id: user._id.toString(),

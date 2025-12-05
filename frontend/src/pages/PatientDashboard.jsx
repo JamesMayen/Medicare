@@ -132,10 +132,10 @@ const PatientDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const [appointmentsRes, chatsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/appointments', {
+        fetch(`${import.meta.env.VITE_API_URL}/appointments`, {
           headers: { Authorization: `Bearer ${user.token}` }
         }),
-        fetch('http://localhost:5000/api/chats', {
+        fetch(`${import.meta.env.VITE_API_URL}/chats`, {
           headers: { Authorization: `Bearer ${user.token}` }
         })
       ]);
@@ -163,7 +163,7 @@ const PatientDashboard = () => {
 
   const fetchUserDetails = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/profile`, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       if (res.ok) {
@@ -191,7 +191,7 @@ const PatientDashboard = () => {
     }
     setSubmitting(prev => ({ ...prev, [appointmentId]: true }));
     try {
-      const res = await fetch('http://localhost:5000/api/ratings', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/ratings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -215,7 +215,7 @@ const PatientDashboard = () => {
 
   const updateAppointmentStatus = async (appointmentId, status) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/appointments/${appointmentId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/appointments/${appointmentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -250,7 +250,7 @@ const PatientDashboard = () => {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/profile`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${user.token}` },
         body: formData
@@ -308,7 +308,7 @@ const PatientDashboard = () => {
       socket.emit('join_chat', chat._id);
     }
     try {
-      const res = await fetch(`http://localhost:5000/api/chats/${chat._id}/messages`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/chats/${chat._id}/messages`, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       if (res.ok) {
@@ -529,7 +529,7 @@ const PatientDashboard = () => {
               <div className="flex items-center space-x-4 mb-4">
                 {doctor.profilePhoto ? (
                   <img
-                    src={`http://localhost:5000/uploads/${doctor.profilePhoto.replace(/^\/uploads\//, '')}`}
+                    src={`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${doctor.profilePhoto.replace(/^\/uploads\//, '')}`}
                     alt={doctor.name}
                     className="w-12 h-12 rounded-full object-cover"
                   />
@@ -786,7 +786,7 @@ const PatientDashboard = () => {
                 />
               ) : user?.profilePhoto ? (
                 <img
-                  src={`http://localhost:5000/uploads/${user.profilePhoto.replace(/^\/uploads\//, '')}`}
+                  src={`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${user.profilePhoto.replace(/^\/uploads\//, '')}`}
                   alt="Current profile"
                   className="w-32 h-32 rounded-full object-cover border-4 border-gray-300 shadow-md"
                 />
@@ -821,7 +821,7 @@ const PatientDashboard = () => {
               {user?.profilePhoto ? (
                 (() => {
                   const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                  const imageSrc = `http://localhost:5000/uploads/${cleanPath}`;
+                  const imageSrc = `${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${cleanPath}`;
                   console.log('Profile image src:', imageSrc);
                   return (
                     <img
@@ -937,7 +937,7 @@ const PatientDashboard = () => {
                 {user?.profilePhoto ? (
                   (() => {
                     const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                    const imageSrc = `http://localhost:5000/uploads/${cleanPath}`;
+                    const imageSrc = `${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${cleanPath}`;
                     console.log('Header profile image src:', imageSrc);
                     return (
                       <img

@@ -154,10 +154,10 @@ const DoctorDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const [appointmentsRes, chatsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/appointments', {
+        fetch(`${import.meta.env.VITE_API_URL}/appointments`, {
           headers: { Authorization: `Bearer ${user.token}` }
         }),
-        fetch('http://localhost:5000/api/chats', {
+        fetch(`${import.meta.env.VITE_API_URL}/chats`, {
           headers: { Authorization: `Bearer ${user.token}` }
         })
       ]);
@@ -185,7 +185,7 @@ const DoctorDashboard = () => {
 
   const fetchUserDetails = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/profile`, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       if (res.ok) {
@@ -217,7 +217,7 @@ const DoctorDashboard = () => {
     console.log('Frontend: Sending profile update - workLocation:', profileForm.workLocation, 'hospital:', profileForm.hospital);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/profile`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${user.token}` },
         body: formData
@@ -247,7 +247,7 @@ const DoctorDashboard = () => {
 
   const handleUpdateFee = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -296,7 +296,7 @@ const DoctorDashboard = () => {
 
   const updateAppointmentStatus = async (appointmentId, status) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/appointments/${appointmentId}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/appointments/${appointmentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -316,7 +316,7 @@ const DoctorDashboard = () => {
   const loadAvailabilities = async () => {
     try {
       setAvailabilityLoading(true);
-      const res = await fetch('http://localhost:5000/api/doctor/availability', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/doctor/availability`, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       if (res.ok) {
@@ -339,7 +339,7 @@ const DoctorDashboard = () => {
     }
     try {
       setAvailabilityLoading(true);
-      const res = await fetch('http://localhost:5000/api/doctor/availability', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/doctor/availability`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -368,7 +368,7 @@ const DoctorDashboard = () => {
   const editAvailability = async (id, updatedSlot) => {
     try {
       setAvailabilityLoading(true);
-      const res = await fetch(`http://localhost:5000/api/doctor/availability/${id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/doctor/availability/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -400,7 +400,7 @@ const DoctorDashboard = () => {
     if (!confirm('Are you sure you want to delete this availability slot?')) return;
     try {
       setAvailabilityLoading(true);
-      const res = await fetch(`http://localhost:5000/api/doctor/availability/${id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/doctor/availability/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${user.token}` }
       });
@@ -563,7 +563,7 @@ const DoctorDashboard = () => {
       socket.emit('join_chat', chat._id);
     }
     try {
-      const res = await fetch(`http://localhost:5000/api/chats/${chat._id}/messages`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/chats/${chat._id}/messages`, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       if (res.ok) {
@@ -1116,7 +1116,7 @@ const DoctorDashboard = () => {
               {user?.profilePhoto ? (
                 (() => {
                   const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                  const imageSrc = `http://localhost:5000/uploads/${cleanPath}`;
+                  const imageSrc = `${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${cleanPath}`;
                   console.log('Profile image src:', imageSrc);
                   return (
                     <img
@@ -1232,7 +1232,7 @@ const DoctorDashboard = () => {
                 {user?.profilePhoto ? (
                   (() => {
                     const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                    const imageSrc = `http://localhost:5000/uploads/${cleanPath}`;
+                    const imageSrc = `${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${cleanPath}`;
                     console.log('Header profile image src:', imageSrc);
                     return (
                       <img

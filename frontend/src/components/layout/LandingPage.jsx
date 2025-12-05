@@ -28,7 +28,7 @@ const LandingPage = () => {
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/auth/doctors');
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/doctors`);
         if (response.ok) {
           const data = await response.json();
           // Shuffle and take first 8 doctors for random display

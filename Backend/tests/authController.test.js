@@ -107,6 +107,59 @@ describe('Auth Controller', () => {
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({ message: 'Server error' });
     });
+
+    it('should return 400 for invalid email format', async () => {
+      mockReq.body = {
+        name: 'John Doe',
+        email: 'invalidemail',
+        password: 'password123'
+      };
+
+      await registerUser(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ message: 'Please provide a valid email address' });
+    });
+
+    it('should return 400 for password too short', async () => {
+      mockReq.body = {
+        name: 'John Doe',
+        email: 'john@example.com',
+        password: '123'
+      };
+
+      await registerUser(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ message: 'Password must be at least 6 characters long' });
+    });
+
+    it('should return 400 for invalid role', async () => {
+      mockReq.body = {
+        name: 'John Doe',
+        email: 'john@example.com',
+        password: 'password123',
+        role: 'admin'
+      };
+
+      await registerUser(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ message: "Invalid role. Must be 'patient' or 'doctor'" });
+    });
+
+    it('should return 400 for name too short', async () => {
+      mockReq.body = {
+        name: 'J',
+        email: 'john@example.com',
+        password: 'password123'
+      };
+
+      await registerUser(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ message: 'Name must be at least 2 characters long' });
+    });
   });
 
   describe('loginUser', () => {

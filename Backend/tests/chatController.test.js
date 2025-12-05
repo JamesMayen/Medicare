@@ -6,11 +6,13 @@ import {
 } from '../controllers/chatController.js';
 import Chat from '../models/chat.js';
 import Appointment from '../models/appointment.js';
+import User from '../models/user.js';
 import { io } from '../server.js';
 
 // Mock dependencies
 jest.mock('../models/chat.js');
 jest.mock('../models/appointment.js');
+jest.mock('../models/user.js');
 jest.mock('../server.js', () => ({
   io: {
     to: jest.fn().mockReturnThis(),
@@ -32,6 +34,14 @@ describe('Chat Controller', () => {
       status: jest.fn().mockReturnThis()
     };
     jest.clearAllMocks();
+
+    // Mock User.findById
+    User.findById.mockImplementation((id) => {
+      if (id === 'user123') return Promise.resolve({ role: 'patient' });
+      if (id === 'user456') return Promise.resolve({ role: 'doctor' });
+      if (id === 'user789') return Promise.resolve({ role: 'patient' });
+      return Promise.resolve(null);
+    });
   });
 
   describe('getChats', () => {

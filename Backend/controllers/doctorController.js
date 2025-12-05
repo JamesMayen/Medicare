@@ -54,16 +54,10 @@ try {
 // Create Availability Slot
 // =============================
 export const createAvailability = async (req, res) => {
-  console.log('DEBUG: createAvailability called with body:', req.body, 'for doctor:', req.user?.id);
-  console.log('DEBUG: req.user exists:', !!req.user);
-  console.log('DEBUG: req.user.id type:', typeof req.user?.id, 'value:', req.user?.id);
-  console.log('DEBUG: req.body types - day:', typeof req.body.day, 'startTime:', typeof req.body.startTime, 'endTime:', typeof req.body.endTime);
-  console.log('DEBUG: req.user object:', req.user);
   try {
     const { day, startTime, endTime } = req.body;
 
     if (req.user.role !== "doctor") {
-      console.log('DEBUG: User role is not doctor:', req.user.role);
       return res.status(403).json({ message: "Only doctors can create availability slots" });
     }
 
@@ -72,13 +66,40 @@ export const createAvailability = async (req, res) => {
     }
 
     if (!day || !startTime || !endTime) {
-      console.log('DEBUG: Missing fields - day:', day, 'startTime:', startTime, 'endTime:', endTime);
       return res.status(400).json({
         message: "Day, startTime and endTime are required",
       });
     }
 
-    console.log('DEBUG: Creating new Availability with doctor:', req.user.id, 'day:', day, 'startTime:', startTime, 'endTime:', endTime);
+    // Validate day
+    const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    if (!validDays.includes(day)) {
+      return res.status(400).json({ message: "Invalid day. Must be a valid day of the week." });
+    }
+
+    // Validate time format (HH:MM)
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+      return res.status(400).json({ message: "Invalid time format. Use HH:MM (24-hour format)." });
+    }
+
+    // Validate startTime < endTime
+    const startMinutes = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
+    const endMinutes = parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]);
+    if (startMinutes >= endMinutes) {
+      return res.status(400).json({ message: "Start time must be before end time." });
+    }
+
+    // Check for overlapping availabilities
+    const existingAvailabilities = await Availability.find({ doctor: req.user.id, day });
+    for (const avail of existingAvailabilities) {
+      const existingStart = parseInt(avail.startTime.split(':')[0]) * 60 + parseInt(avail.startTime.split(':')[1]);
+      const existingEnd = parseInt(avail.endTime.split(':')[0]) * 60 + parseInt(avail.endTime.split(':')[1]);
+      if (startMinutes < existingEnd && endMinutes > existingStart) {
+        return res.status(400).json({ message: "Availability slot overlaps with existing slot." });
+      }
+    }
+
     const newAvailability = new Availability({
       doctor: req.user.id,
       day,
@@ -86,45 +107,12 @@ export const createAvailability = async (req, res) => {
       endTime,
     });
 
-    console.log('DEBUG: newAvailability object before save:', newAvailability);
-    console.log('DEBUG: About to save availability');
-    let savedAvailability;
-    try {
-      savedAvailability = await newAvailability.save();
-      console.log('DEBUG: Availability saved successfully:', savedAvailability._id);
-    } catch (saveError) {
-      console.error('Detailed save error:', saveError);
-      console.error('Save error name:', saveError.name);
-      console.error('Save error code:', saveError.code);
-      if (saveError.errors) {
-        console.error('Validation errors:', saveError.errors);
-      }
-      return res.status(500).json({ message: "Failed to save availability slot", error: saveError.message });
-    }
+    const savedAvailability = await newAvailability.save();
 
-    console.log('DEBUG: Proceeding to post-save operations');
-
-    // Update consultation fee if provided
-    if (req.body.consultationFee !== undefined) {
-      console.log('DEBUG: Updating consultationFee to:', req.body.consultationFee);
-      try {
-        await User.findByIdAndUpdate(req.user.id, { consultationFees: req.body.consultationFee });
-        console.log('DEBUG: ConsultationFee updated successfully');
-      } catch (updateError) {
-        console.error('DEBUG: ConsultationFee update error:', updateError);
-        throw updateError;
-      }
-    }
-
-    console.log('DEBUG: Fetching doctor for emit');
+    // Fetch doctor and availabilities for real-time update
     const doctor = await User.findById(req.user.id).select('name specialization averageRating experience workLocation consultationFees profilePhoto hospital bio contactDetails isVerified');
-    console.log('DEBUG: Doctor fetched:', doctor ? doctor._id : 'null');
-
-    console.log('DEBUG: Fetching availabilities');
     const availabilities = await Availability.find({ doctor: req.user.id });
-    console.log('DEBUG: Availabilities fetched:', availabilities.length);
 
-    console.log('DEBUG: Creating doctorWithAvailabilities');
     const doctorWithAvailabilities = {
       ...doctor.toObject(),
       availabilities: availabilities.map(avail => ({
@@ -135,7 +123,6 @@ export const createAvailability = async (req, res) => {
       })),
     };
 
-    console.log('DEBUG: Emitting update');
     emitDoctorProfileUpdated(doctorWithAvailabilities);
 
     res.status(201).json({
@@ -144,9 +131,6 @@ export const createAvailability = async (req, res) => {
     });
   } catch (error) {
     console.error("Availability creation error:", error);
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
     res.status(500).json({ message: "Server error creating availability slot" });
   }
 };
@@ -194,16 +178,49 @@ export const updateAvailability = async (req, res) => {
       return res.status(403).json({ message: "Not authorized to update this availability slot" });
     }
 
-    availability.day = day || availability.day;
-    availability.startTime = startTime || availability.startTime;
-    availability.endTime = endTime || availability.endTime;
+    // Use existing values if not provided
+    const updatedDay = day || availability.day;
+    const updatedStartTime = startTime || availability.startTime;
+    const updatedEndTime = endTime || availability.endTime;
+
+    // Validate day
+    const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    if (!validDays.includes(updatedDay)) {
+      return res.status(400).json({ message: "Invalid day. Must be a valid day of the week." });
+    }
+
+    // Validate time format (HH:MM)
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(updatedStartTime) || !timeRegex.test(updatedEndTime)) {
+      return res.status(400).json({ message: "Invalid time format. Use HH:MM (24-hour format)." });
+    }
+
+    // Validate startTime < endTime
+    const startMinutes = parseInt(updatedStartTime.split(':')[0]) * 60 + parseInt(updatedStartTime.split(':')[1]);
+    const endMinutes = parseInt(updatedEndTime.split(':')[0]) * 60 + parseInt(updatedEndTime.split(':')[1]);
+    if (startMinutes >= endMinutes) {
+      return res.status(400).json({ message: "Start time must be before end time." });
+    }
+
+    // Check for overlapping availabilities (excluding current one)
+    const existingAvailabilities = await Availability.find({
+      doctor: req.user.id,
+      day: updatedDay,
+      _id: { $ne: id }
+    });
+    for (const avail of existingAvailabilities) {
+      const existingStart = parseInt(avail.startTime.split(':')[0]) * 60 + parseInt(avail.startTime.split(':')[1]);
+      const existingEnd = parseInt(avail.endTime.split(':')[0]) * 60 + parseInt(avail.endTime.split(':')[1]);
+      if (startMinutes < existingEnd && endMinutes > existingStart) {
+        return res.status(400).json({ message: "Availability slot overlaps with existing slot." });
+      }
+    }
+
+    availability.day = updatedDay;
+    availability.startTime = updatedStartTime;
+    availability.endTime = updatedEndTime;
 
     await availability.save();
-
-    // Update consultation fee if provided
-    if (req.body.consultationFee !== undefined) {
-      await User.findByIdAndUpdate(req.user.id, { consultationFees: req.body.consultationFee });
-    }
 
     // Fetch updated doctor with availabilities for real-time update
     const doctor = await User.findById(req.user.id).select('name specialization averageRating experience workLocation consultationFees profilePhoto hospital bio contactDetails isVerified');

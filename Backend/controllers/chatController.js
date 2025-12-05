@@ -1,11 +1,11 @@
 import Chat from "../models/chat.js";
 import Appointment from "../models/appointment.js";
+import User from "../models/user.js";
 import { io } from "../server.js";
 
 // Helper function to check if two users can chat (have confirmed appointment)
 const canChat = async (user1, user2) => {
   try {
-    const User = (await import("../models/user.js")).default;
     const u1 = await User.findById(user1);
     const u2 = await User.findById(user2);
 
@@ -65,7 +65,6 @@ export const createOrGetChat = async (req, res) => {
 
   try {
     // Check if participant exists
-    const User = (await import("../models/user.js")).default;
     const participant = await User.findById(participantId);
     if (!participant) {
       return res.status(404).json({ message: "Participant not found" });

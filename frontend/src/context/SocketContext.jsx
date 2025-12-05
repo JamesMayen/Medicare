@@ -10,10 +10,19 @@ export const SocketProvider = ({ children }) => {
   const { user } = useAuth();
 
   useEffect(() => {
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (() => {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (!apiUrl) {
+        console.error("❌ No VITE_API_URL found in environment variables");
+        return null;
+      }
+      // Derive socket URL by replacing '/api' with empty string and adjusting protocol
+      let socketUrl = apiUrl.replace('/api', '');
+      socketUrl = socketUrl.replace(/^http/, 'ws');
+      return socketUrl;
+    })();
 
     if (!SOCKET_URL) {
-      console.error("❌ No VITE_SOCKET_URL found in environment variables");
       return;
     }
 
