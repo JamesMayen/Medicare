@@ -4,6 +4,9 @@ import { jwtDecode } from 'jwt-decode';
 export const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
+// Load backend URL from .env
+const API_URL = import.meta.env.VITE_API_URL;   // <--- IMPORTANT
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,7 +18,6 @@ export const AuthProvider = ({ children }) => {
       try {
         const decoded = jwtDecode(storedToken);
         if (!decoded.name || !decoded.email) {
-          // Old token without user details, remove it
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           setUser(null);
@@ -33,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth/login', {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -47,11 +49,12 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user', JSON.stringify(userData));
         setUser({ ...userData, token });
 
-        // Fetch complete profile to ensure we have all fields including createdAt
+        // Fetch full profile
         try {
-          const profileRes = await fetch('http://localhost:5000/api/auth/profile', {
+          const profileRes = await fetch(`${API_URL}/api/auth/profile`, {
             headers: { Authorization: `Bearer ${data.token}` }
           });
+
           if (profileRes.ok) {
             const profileData = await profileRes.json();
             localStorage.setItem('user', JSON.stringify(profileData));
@@ -73,7 +76,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (fullName, email, password, role = 'patient') => {
     try {
-      const res = await fetch('http://localhost:5000/api/auth/register', {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: fullName, email, password, role }),
@@ -87,11 +90,12 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user', JSON.stringify(userData));
         setUser({ ...userData, token });
 
-        // Fetch complete profile to ensure we have all fields including createdAt
+        // Fetch profile
         try {
-          const profileRes = await fetch('http://localhost:5000/api/auth/profile', {
+          const profileRes = await fetch(`${API_URL}/api/auth/profile`, {
             headers: { Authorization: `Bearer ${data.token}` }
           });
+
           if (profileRes.ok) {
             const profileData = await profileRes.json();
             localStorage.setItem('user', JSON.stringify(profileData));
@@ -117,9 +121,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const isAdmin = () => {
-    return user && user.role === 'admin';
-  };
+  const isAdmin = () => user?.role === 'admin';
 
   return (
     <AuthContext.Provider value={{ user, setUser, login, register, logout, loading, isAdmin }}>
