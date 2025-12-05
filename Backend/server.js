@@ -1,3 +1,4 @@
+// server.js (production-ready, fixes CORS/static issues)
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -8,10 +9,10 @@ import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cron from "node-cron";
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 import connectDB from "./config/db.js";
 
 // Routes
@@ -36,14 +37,13 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Global error handlers for debugging
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+// Global error handlers (keep for visibility in production logs)
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
   process.exit(1);
 });
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);
 });
 
@@ -52,10 +52,10 @@ connectDB();
 
 const app = express();
 
-// Security middleware
+// Basic security headers
 app.use(helmet());
 
-// Rate limit
+// Rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -63,30 +63,22 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Compression
+// Compression & logging
 app.use(compression());
-
-// Logging
 app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
 
-// --------------------------------------------------
-// ✅ FIXED: Serve uploads FIRST with NO CORS
-// --------------------------------------------------
-fs.mkdirSync(path.join(__dirname, "uploads"), { recursive: true });
-
-app.use(
-  "/uploads",
-  express.static(path.join(__dirname, "uploads"), {
-    setHeaders: (res) => {
-      // Ensure static images do NOT carry wrong headers
-      res.removeHeader("Cross-Origin-Resource-Policy");
-      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-    },
-  })
-);
+// Ensure uploads folder exists BEFORE serving static
+const uploadsPath = path.join(__dirname, "uploads");
+fs.mkdirSync(uploadsPath, { recursive: true });
 
 // --------------------------------------------------
-// CORS Middleware (APPLIES TO API ONLY)
+// Serve uploads (static) FIRST and WITHOUT CORS wrappers
+// --------------------------------------------------
+// Note: do not add custom CORS headers here (Chrome blocks static responses if headers make it a CORS response).
+app.use("/uploads", express.static(uploadsPath));
+
+// --------------------------------------------------
+// CORS configuration for API routes
 // --------------------------------------------------
 const allowedOrigins = [
   "http://localhost:3000",
@@ -96,19 +88,33 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
+// origin function to allow undefined (non-browser tools) and only the allowed domains
+const corsOptions = {
+  origin(origin, callback) {
+    // allow requests with no origin (e.g. curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("CORS policy: This origin is not allowed."));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
-// Body parsing - applied conditionally to avoid conflicts with multipart
+// Pre-flight for all routes
+app.options("*", cors(corsOptions));
+
+// Apply CORS to API (not static uploads)
+app.use(cors(corsOptions));
+
+// Body parsers (for JSON and urlencoded form submissions)
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // --------------------------------------------------
-// API Routes
+// Mount API routes
 // --------------------------------------------------
 app.use("/api/auth", authRoutes);
 app.use("/api/appointments", appointmentRoutes);
@@ -118,57 +124,50 @@ app.use("/api/ratings", ratingRoutes);
 app.use("/api/doctor", consultationRoutes);
 app.use("/api/doctor", availabilityRoutes);
 
-// Health Check
+// Health check
 app.get("/health", async (req, res) => {
   try {
     const mongoose = (await import("mongoose")).default;
     const status = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
-
     res.status(status === "connected" ? 200 : 503).json({
       status: "OK",
       timestamp: new Date().toISOString(),
-      database: {
-        status,
-        name: mongoose.connection.name,
-      },
+      database: { status, name: mongoose.connection.name || "unknown" },
     });
-  } catch (error) {
-    res.status(503).json({ error: error.message });
+  } catch (err) {
+    res.status(503).json({ status: "ERROR", error: err.message });
   }
 });
 
 // Root
-app.get("/", (req, res) => {
-  res.send("Medicare backend is running...");
-});
+app.get("/", (req, res) => res.send("Medicare backend is running..."));
 
 // Error middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-
+  console.error("ERROR:", err && err.stack ? err.stack : err);
   if (err.name === "ValidationError") {
     return res.status(400).json({
       message: "Validation Error",
-      errors: Object.values(err.errors).map((e) => e.message),
+      errors: Object.values(err.errors || {}).map((e) => e.message),
     });
   }
-
+  if (err.message && err.message.startsWith("CORS policy")) {
+    return res.status(403).json({ message: err.message });
+  }
   res.status(500).json({
-    message:
-      process.env.NODE_ENV === "production" ? "Something went wrong!" : err.message,
+    message: process.env.NODE_ENV === "production" ? "Something went wrong!" : err.message,
   });
 });
 
 // 404
 app.use((req, res) => {
-  console.log('DEBUG: 404 Route not found - Method:', req.method, 'URL:', req.url);
+  console.warn("404 - Not found:", req.method, req.originalUrl);
   res.status(404).json({ message: "Route not found" });
 });
 
 // --------------------------------------------------
-// SOCKET.IO
+// Socket.IO
 // --------------------------------------------------
-
 const PORT = process.env.PORT || 5000;
 const server = createServer(app);
 
@@ -181,83 +180,71 @@ const io = new Server(server, {
 
 setIo(io);
 
-// Socket authentication middleware (optional for public events)
+// Optional auth middleware for socket connections (non-blocking)
 io.use(async (socket, next) => {
   try {
-    const token = socket.handshake.auth.token;
+    const token = socket.handshake.auth?.token;
     if (token) {
       const jwt = (await import("jsonwebtoken")).default;
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const User = (await import("./models/user.js")).default;
-
       const user = await User.findById(decoded.id).select("-password");
-      if (user) {
-        socket.user = user;
-      }
+      if (user) socket.user = user;
     }
     next();
-  } catch (error) {
-    next(new Error("Authentication error"));
+  } catch (err) {
+    // allow connection but without user if token invalid
+    console.error("Socket auth error:", err.message);
+    next();
   }
 });
 
-io.on("connection", async (socket) => {
+io.on("connection", (socket) => {
   if (socket.user) {
-    console.log(`User ${socket.user.name} connected`);
-
+    console.log(`User ${socket.user.name} connected (socket: ${socket.id})`);
     socket.join(`user_${socket.user._id}`);
 
     Chat.find({ participants: socket.user._id })
-      .then((chats) => {
-        chats.forEach((chat) => socket.join(`chat_${chat._id}`));
-      })
-      .catch((error) => {
-        console.error('Error finding chats for user:', error);
-      });
-
-    socket.on("disconnect", () => {
-      console.log(`User ${socket.user.name} disconnected`);
-    });
+      .then((chats) => chats.forEach((c) => socket.join(`chat_${c._id}`)))
+      .catch((e) => console.error("Socket join chats error:", e));
   } else {
-    console.log(`Anonymous user connected`);
-
-    socket.on("disconnect", () => {
-      console.log(`Anonymous user disconnected`);
-    });
+    console.log(`Anonymous socket connected: ${socket.id}`);
   }
+
+  socket.on("disconnect", () => {
+    if (socket.user) console.log(`User ${socket.user.name} disconnected`);
+    else console.log(`Socket ${socket.id} disconnected`);
+  });
 });
 
-// --------------------------------------------------
-// Cron - reminders
-// --------------------------------------------------
+// Cron reminders
 cron.schedule("0 * * * *", async () => {
   try {
-    console.log("Checking for appointment reminders...");
+    console.log("Cron: checking appointment reminders...");
     const appointments = await Appointment.find({ status: "confirmed" })
       .populate("patient", "name email")
       .populate("doctor", "name email");
     sendReminders(appointments);
-  } catch (error) {
-    console.error("Reminder error:", error);
+  } catch (err) {
+    console.error("Cron error:", err);
   }
 });
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT} (NODE_ENV=${process.env.NODE_ENV || "development"})`);
 });
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('Shutting down server...');
+// Graceful shutdown (SIGINT)
+process.on("SIGINT", async () => {
+  console.log("SIGINT received: shutting down");
   server.close(async () => {
     const mongoose = (await import("mongoose")).default;
-    await mongoose.connection.close();
-    console.log('Server and DB closed');
+    await mongoose.connection.close(false);
+    console.log("Server & DB connections closed");
     process.exit(0);
   });
 });
 
 export { io };
-// Trigger restart
 export default app;
