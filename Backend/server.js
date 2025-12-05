@@ -37,7 +37,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Global error handlers (keep for visibility in production logs)
+// Global error handlers
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
   process.exit(1);
@@ -52,7 +52,7 @@ connectDB();
 
 const app = express();
 
-// Basic security headers
+// Security
 app.use(helmet());
 
 // Rate limiter
@@ -67,18 +67,17 @@ app.use(limiter);
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
 
-// Ensure uploads folder exists BEFORE serving static
+// Ensure uploads folder exists
 const uploadsPath = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadsPath, { recursive: true });
 
 // --------------------------------------------------
-// Serve uploads (static) FIRST and WITHOUT CORS wrappers
+// Serve uploads (static)
 // --------------------------------------------------
-// Note: do not add custom CORS headers here (Chrome blocks static responses if headers make it a CORS response).
 app.use("/uploads", express.static(uploadsPath));
 
 // --------------------------------------------------
-// CORS configuration for API routes
+// CORS configuration
 // --------------------------------------------------
 const allowedOrigins = [
   "http://localhost:3000",
@@ -88,14 +87,10 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
-// origin function to allow undefined (non-browser tools) and only the allowed domains
 const corsOptions = {
   origin(origin, callback) {
-    // allow requests with no origin (e.g. curl, server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+    if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error("CORS policy: This origin is not allowed."));
   },
   credentials: true,
@@ -103,13 +98,13 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-// Pre-flight for all routes
-app.options("*", cors(corsOptions));
+// ❌ Removed because Express 5 does NOT accept "/*" or "*" options route
+// app.options("/*", cors(corsOptions));
 
-// Apply CORS to API (not static uploads)
+// Apply CORS globally
 app.use(cors(corsOptions));
 
-// Body parsers (for JSON and urlencoded form submissions)
+// Body parsers
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -144,14 +139,14 @@ app.get("/", (req, res) => res.send("Medicare backend is running..."));
 
 // Error middleware
 app.use((err, req, res, next) => {
-  console.error("ERROR:", err && err.stack ? err.stack : err);
+  console.error("ERROR:", err?.stack || err);
   if (err.name === "ValidationError") {
     return res.status(400).json({
       message: "Validation Error",
       errors: Object.values(err.errors || {}).map((e) => e.message),
     });
   }
-  if (err.message && err.message.startsWith("CORS policy")) {
+  if (err.message?.startsWith("CORS policy")) {
     return res.status(403).json({ message: err.message });
   }
   res.status(500).json({
@@ -180,7 +175,6 @@ const io = new Server(server, {
 
 setIo(io);
 
-// Optional auth middleware for socket connections (non-blocking)
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token;
@@ -193,7 +187,6 @@ io.use(async (socket, next) => {
     }
     next();
   } catch (err) {
-    // allow connection but without user if token invalid
     console.error("Socket auth error:", err.message);
     next();
   }
@@ -217,7 +210,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// Cron reminders
+// Cron
 cron.schedule("0 * * * *", async () => {
   try {
     console.log("Cron: checking appointment reminders...");
@@ -235,7 +228,7 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT} (NODE_ENV=${process.env.NODE_ENV || "development"})`);
 });
 
-// Graceful shutdown (SIGINT)
+// Graceful shutdown
 process.on("SIGINT", async () => {
   console.log("SIGINT received: shutting down");
   server.close(async () => {
