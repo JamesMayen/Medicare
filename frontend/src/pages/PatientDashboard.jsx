@@ -132,10 +132,10 @@ const PatientDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const [appointmentsRes, chatsRes] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/appointments`, {
+        fetch(`${import.meta.env.VITE_API_URL}/api/appointments`, {
           headers: { Authorization: `Bearer ${user.token}` }
         }),
-        fetch(`${import.meta.env.VITE_API_URL}/chats`, {
+        fetch(`${import.meta.env.VITE_API_URL}/api/chats`, {
           headers: { Authorization: `Bearer ${user.token}` }
         })
       ]);
@@ -529,7 +529,7 @@ const PatientDashboard = () => {
               <div className="flex items-center space-x-4 mb-4">
                 {doctor.profilePhoto ? (
                   <img
-                    src={`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${doctor.profilePhoto.replace(/^\/uploads\//, '')}`}
+                    src={`${import.meta.env.VITE_API_URL}/api/uploads/${doctor.profilePhoto.replace(/^\/uploads\//, '')}`}
                     alt={doctor.name}
                     className="w-12 h-12 rounded-full object-cover"
                   />
@@ -786,7 +786,7 @@ const PatientDashboard = () => {
                 />
               ) : user?.profilePhoto ? (
                 <img
-                  src={`${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${user.profilePhoto.replace(/^\/uploads\//, '')}`}
+                  src={`${import.meta.env.VITE_API_URL}/api/uploads/${user.profilePhoto.replace(/^\/uploads\//, '')}`}
                   alt="Current profile"
                   className="w-32 h-32 rounded-full object-cover border-4 border-gray-300 shadow-md"
                 />
@@ -821,7 +821,7 @@ const PatientDashboard = () => {
               {user?.profilePhoto ? (
                 (() => {
                   const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                  const imageSrc = `${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${cleanPath}`;
+                  const imageSrc = `${import.meta.env.VITE_API_URL}/api/uploads/${cleanPath}`;
                   console.log('Profile image src:', imageSrc);
                   return (
                     <img
@@ -937,7 +937,7 @@ const PatientDashboard = () => {
                 {user?.profilePhoto ? (
                   (() => {
                     const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                    const imageSrc = `${import.meta.env.VITE_API_URL.replace('/api', '')}/uploads/${cleanPath}`;
+                    const imageSrc = `${import.meta.env.VITE_API_URL}/api/uploads/${cleanPath}`;
                     console.log('Header profile image src:', imageSrc);
                     return (
                       <img
