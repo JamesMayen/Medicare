@@ -1116,7 +1116,7 @@ const DoctorDashboard = () => {
               {user?.profilePhoto ? (
                 (() => {
                   const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                  const imageSrc = `${import.meta.env.VITE_API_URL}/api/uploads/${cleanPath}`;
+                  const imageSrc = `${import.meta.env.VITE_API_URL}/uploads/${cleanPath}`;
                   console.log('Profile image src:', imageSrc);
                   return (
                     <img
@@ -1231,19 +1231,19 @@ const DoctorDashboard = () => {
               >
                 {user?.profilePhoto ? (
                   (() => {
-                    const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
-                    const imageSrc = `${import.meta.env.VITE_API_URL}/api/uploads/${cleanPath}`;
-                    console.log('Header profile image src:', imageSrc);
-                    return (
-                      <img
-                        src={imageSrc}
-                        alt="Profile"
-                        className="w-5 h-5 rounded-full object-cover"
-                        aria-hidden="true"
-                        onError={(e) => console.error('Header image load error:', e)}
-                      />
-                    );
-                  })()
+                      const cleanPath = user.profilePhoto.replace(/^\/uploads\//, '');
+                      const imageSrc = `${import.meta.env.VITE_API_URL}/uploads/${cleanPath}`;
+                      console.log('Header profile image src:', imageSrc);
+                      return (
+                        <img
+                          src={imageSrc}
+                          alt="Profile"
+                          className="w-5 h-5 rounded-full object-cover"
+                          aria-hidden="true"
+                          onError={(e) => console.error('Header image load error:', e)}
+                        />
+                      );
+                    })()
                 ) : (
                   <User className="w-5 h-5" aria-hidden="true" />
                 )}
